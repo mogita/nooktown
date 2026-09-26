@@ -3,20 +3,37 @@ const BEAT = 60 / BPM;
 const STEP = BEAT / 4;
 const BAR = BEAT * 4;
 const TAPE = 0.012; // resting delay of the tape line
+const OPEN = 20000; // ambience low-pass outdoors
 
-// [bass root, chord voicing] per bar, plus a pentatonic scale for melody and chimes.
+// [bass root, chord voicing] per bar, plus a pentatonic scale for melody and chimes. Each place has its own loops.
 const SONGS = {
-  day: {
-    chords: [[36, [52, 55, 59, 62]], [45, [55, 59, 60, 64]], [38, [53, 57, 60, 64]], [43, [53, 57, 59, 64]]],
-    scale: [60, 62, 64, 67, 69],
+  roof: {
+    day: {
+      chords: [[36, [52, 55, 59, 62]], [45, [55, 59, 60, 64]], [38, [53, 57, 60, 64]], [43, [53, 57, 59, 64]]],
+      scale: [60, 62, 64, 67, 69],
+    },
+    evening: {
+      chords: [[41, [57, 60, 64, 67]], [40, [55, 59, 62, 66]], [38, [53, 57, 60, 64]], [37, [53, 56, 60, 67]]],
+      scale: [65, 67, 69, 72, 74],
+    },
+    night: {
+      chords: [[45, [55, 59, 60, 64]], [41, [52, 57, 59, 64]], [38, [53, 57, 60, 64]], [40, [56, 59, 62, 65]]],
+      scale: [57, 60, 62, 64, 67],
+    },
   },
-  evening: {
-    chords: [[41, [57, 60, 64, 67]], [40, [55, 59, 62, 66]], [38, [53, 57, 60, 64]], [37, [53, 56, 60, 67]]],
-    scale: [65, 67, 69, 72, 74],
-  },
-  night: {
-    chords: [[45, [55, 59, 60, 64]], [41, [52, 57, 59, 64]], [38, [53, 57, 60, 64]], [40, [56, 59, 62, 65]]],
-    scale: [57, 60, 62, 64, 67],
+  room: {
+    day: {
+      chords: [[39, [55, 58, 62, 65]], [36, [51, 55, 58, 62]], [44, [55, 58, 60, 63]], [46, [56, 60, 63, 67]]],
+      scale: [63, 65, 67, 70, 72],
+    },
+    evening: {
+      chords: [[46, [57, 60, 62, 65]], [45, [55, 60, 62, 64]], [43, [53, 57, 58, 62]], [36, [52, 57, 58, 62]]],
+      scale: [62, 65, 67, 69, 72],
+    },
+    night: {
+      chords: [[40, [54, 55, 59, 62]], [36, [54, 55, 59, 64]], [45, [52, 55, 59, 60]], [35, [54, 57, 59, 64]]],
+      scale: [59, 62, 64, 66, 69],
+    },
   },
 };
 
@@ -48,7 +65,7 @@ function bursts(d, sr, count, freq, decay, amp) {
 }
 
 export class Engine {
-  constructor(ctx, { weather, time, levels }) {
+  constructor(ctx, { place, weather, time, levels }) {
     this.ctx = ctx;
     this.noise = makeBuffer(ctx, 4, white);
 
@@ -81,7 +98,10 @@ export class Engine {
     send(this.ch.keys, 0.3);
     send(this.ch.drums, 0.08);
     this.ch.vinyl.connect(tape);
-    for (const k of ['weather', 'nature']) this.ch[k].connect(comp);
+    // Indoors the window muffles the outside.
+    this.walls = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: OPEN, Q: 0.5 });
+    this.walls.connect(comp);
+    for (const k of ['weather', 'nature']) this.ch[k].connect(this.walls);
     send(this.ch.nature, 0.25);
 
     this.weathers = { rain: this.rain(), cloud: this.wind(420, 0.8, 0.9), sun: this.wind(2400, 0.5, 0.28) };
@@ -94,7 +114,7 @@ export class Engine {
     this.mi = 4;
     this.ch.weather.gain.value = TRIM.weather;
     this.levels = { ...levels };
-    this.setScene(weather, time, true);
+    this.setScene(weather, time, place, true);
     for (const [k, v] of Object.entries(levels)) this.setLevel(k, v);
   }
 
@@ -167,11 +187,13 @@ export class Engine {
     for (const [k, g] of Object.entries(this.weathers)) g.gain.setTargetAtTime(k === this.weather ? (this.levels[WEATHER_SOUNDS[k]] ?? 0) ** 2 : 0, this.ctx.currentTime, tau);
   }
 
-  setScene(weather, time, instant) {
+  setScene(weather, time, place, instant) {
     this.weather = weather;
     this.mixWeather(instant ? 0.01 : 1.2);
+    this.walls.frequency.setTargetAtTime(place === 'room' ? 3500 : OPEN, this.ctx.currentTime, instant ? 0.01 : 0.6);
     this.time = time;
-    if (instant) this.song = time;
+    this.place = place;
+    if (instant) this.song = SONGS[place][time];
   }
 
   fadeTo(v, seconds) {
@@ -222,8 +244,8 @@ export class Engine {
 
   step(t, i) {
     const s = i % 16, bar = Math.floor(i / 16), r = Math.random();
-    if (s === 0) this.song = this.time;
-    const [root, chord] = SONGS[this.song].chords[bar % 4];
+    if (s === 0) this.song = SONGS[this.place][this.time];
+    const [root, chord] = this.song.chords[bar % 4];
     const at = t + (s % 2 ? STEP * 0.28 : 0) + rand(-0.004, 0.004);
     // Two-bar intro, then a two-bar drum break at the end of every sixteen bars.
     const drums = bar >= 2 && bar % 16 < 14;
@@ -248,7 +270,7 @@ export class Engine {
   melody(t, s, bar) {
     if (s === 0) this.phrase = Math.random() < (bar % 4 < 2 ? 0.75 : 0.2);
     if (!this.phrase || Math.random() > (s % 4 ? 0.22 : 0.42)) return;
-    const sc = SONGS[this.song].scale;
+    const sc = this.song.scale;
     this.mi = Math.min(9, Math.max(0, this.mi + pick([-2, -1, -1, 0, 1, 1, 2])));
     this.epiano(t, sc[this.mi % 5] + 12 * Math.floor(this.mi / 5), rand(0.1, 0.16), STEP * pick([2, 3, 4]));
   }
@@ -361,7 +383,7 @@ export class Engine {
   }
 
   chime(t) {
-    const f = mtof(pick(SONGS[this.song].scale) + 24), v = rand(0.03, 0.06), pan = rand(-0.5, 0.5);
+    const f = mtof(pick(this.song.scale) + 24), v = rand(0.03, 0.06), pan = rand(-0.5, 0.5);
     [[1, 1], [2.76, 0.35], [5.4, 0.12]].forEach(([ratio, a]) => {
       const [o, g] = this.voice(t, pan, f * ratio);
       g.setValueAtTime(0, t), g.linearRampToValueAtTime(v * a, t + 0.003), g.setTargetAtTime(0, t + 0.003, 1.1 / ratio);

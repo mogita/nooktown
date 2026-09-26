@@ -2,6 +2,7 @@
 
 Usage: python3 art/snap.py
 Detects the grid on art/raw/rain-day.png and applies it to every art/raw/*.png so all scenes stay aligned.
+The room scenes share one grid of their own.
 Each detected cell is split into DETAIL x DETAIL art pixels, keeping the finer strokes the generator drew.
 Colours are the true per-cell medians: a reduced palette shifted sky hues and ringed the bulbs.
 """
@@ -173,16 +174,19 @@ if __name__ == '__main__':
     root = Path(__file__).parent
     assets = root.parent / 'public/assets'
     base = snap(root / 'raw/rain-day.png', assets / 'rain-day.png', detail=k)
+    # The room art came out with squashed rows, so its grid is the one its columns show, at the rooftop's size.
+    room = (3.36, -0.33, 0.27) + base[3:]
     for src in sorted((root / 'raw').glob('*.png')):
         if src.stem != 'rain-day':
-            snap(src, assets / src.name, base)
+            snap(src, assets / src.name, room if src.stem.startswith('room-') else base)
     for wet, dry in (('rain-evening', 'cloud-evening'), ('rain-night', 'cloud-night')):
         dry_face(assets / f'{wet}.png', assets / f'{dry}.png', 108 * k)
     cool_face(assets / 'rain-evening.png', assets / 'rain-night.png', 108 * k)
     repaint_moon(assets / 'sun-night.png', k)
     wire = wire_path(assets / 'rain-day.png', k)
     for png in sorted(assets.glob('*.png')):
-        mend_wire(png, wire)
+        if not png.stem.startswith('room-'):
+            mend_wire(png, wire)
     # Link preview card, enlarged without smoothing so the pixels stay crisp when sites scale it down.
     card = Image.open(assets / 'sun-night.png')
     card.resize((card.width * 3, card.height * 3), Image.NEAREST).save(assets.parent / 'og.png', optimize=True)

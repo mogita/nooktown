@@ -16,12 +16,20 @@ const pieces = (on) => {
   return n;
 };
 
-const poses = new Set();
-for (let i = 0; i < 3000; i++) {
-  const t = i / 100, on = catPixels(t, false, 2);
-  assert.equal(pieces(on), 1, `cat splits at t = ${t}`);
-  poses.add([...on].sort().join(' '));
+for (const hang of [false, true]) {
+  const poses = new Set();
+  for (let i = 0; i < 3000; i++) {
+    const t = i / 100, on = catPixels(t, false, 2, hang);
+    assert.equal(pieces(on), 1, `cat splits at t = ${t}${hang ? ' with its tail hanging' : ''}`);
+    poses.add([...on].sort().join(' '));
+  }
+  // The tail holds a few poses instead of crawling pixel by pixel.
+  assert.equal(poses.size, 5, `tail has ${poses.size} poses`);
 }
-// The tail holds a few curl poses instead of crawling pixel by pixel.
-assert.equal(poses.size, 5, `tail has ${poses.size} poses`);
-console.log('PASS: the cat stays in one piece and its tail holds 5 poses');
+// An ear twitch changes the outline, and the favicon's small cat stays whole too.
+for (const k of [1, 2]) {
+  assert.notEqual([...catPixels(0, true, k)].sort().join(' '), [...catPixels(0, false, k)].sort().join(' '), `no ear twitch at k = ${k}`);
+  assert.equal(pieces(catPixels(0, true, k)), 1, `twitching cat splits at k = ${k}`);
+}
+assert.equal(pieces(catPixels(0, false, 1)), 1, 'small cat splits');
+console.log('PASS: the cat stays in one piece, its tail holds 5 poses resting or hanging, and its ear twitches');

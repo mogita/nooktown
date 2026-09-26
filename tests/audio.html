@@ -10,9 +10,9 @@ const SR = 44100, SECONDS = 12;
 const silent = Object.fromEntries(Object.keys(DEFAULT_LEVELS).map((k) => [k, 0]));
 const solo = (ch) => (ch === 'weather' ? { rain: 0.7, wind: 0.7, breeze: 0.7 } : { [ch]: 0.7 });
 
-async function render(weather, time, levels) {
+async function render(place, weather, time, levels) {
   const ctx = new OfflineAudioContext(2, SR * SECONDS, SR);
-  const e = new Engine(ctx, { weather, time, levels });
+  const e = new Engine(ctx, { place, weather, time, levels });
   e.fadeTo(1, 0.01);
   e.tick(SECONDS);
   const b = await ctx.startRendering();
@@ -29,22 +29,22 @@ async function render(weather, time, levels) {
 }
 
 const lines = [], fails = [];
-for (const weather of ['rain', 'cloud', 'sun']) for (const time of ['day', 'evening', 'night']) {
-  const row = [`${weather}-${time}`.padEnd(14)];
+for (const place of ['roof', 'room']) for (const weather of ['rain', 'cloud', 'sun']) for (const time of ['day', 'evening', 'night']) {
+  const name = `${place}-${weather}-${time}`, row = [name.padEnd(19)];
   for (const ch of CHANNELS) {
-    const { rms } = await render(weather, time, { ...silent, master: 1, ...solo(ch) });
+    const { rms } = await render(place, weather, time, { ...silent, master: 1, ...solo(ch) });
     row.push(`${ch} ${rms.toFixed(1)}`);
-    if (rms < -55) fails.push(`${weather}-${time} ${ch} silent (${rms.toFixed(1)} dB)`);
+    if (rms < -55) fails.push(`${name} ${ch} silent (${rms.toFixed(1)} dB)`);
   }
-  const mix = await render(weather, time, { ...DEFAULT_LEVELS, master: 1 });
+  const mix = await render(place, weather, time, { ...DEFAULT_LEVELS, master: 1 });
   row.push(`| mix ${mix.rms.toFixed(1)} dB peak ${mix.peak.toFixed(2)}`);
-  if (mix.peak >= 1) fails.push(`${weather}-${time} mix clips (peak ${mix.peak.toFixed(2)})`);
+  if (mix.peak >= 1) fails.push(`${name} mix clips (peak ${mix.peak.toFixed(2)})`);
   lines.push(row.join('  '));
 }
 // Turntable: pitch falls during the brake, the stop is silent, and the spin-up brings sound back.
 {
   const ctx = new OfflineAudioContext(2, SR * 7, SR), q = 128 / SR, at = (t) => Math.round(t / q) * q;
-  const e = new Engine(ctx, { weather: 'rain', time: 'day', levels: { ...silent, master: 1, keys: 0.7 } });
+  const e = new Engine(ctx, { place: 'roof', weather: 'rain', time: 'day', levels: { ...silent, master: 1, keys: 0.7 } });
   e.fadeTo(1, 0.01);
   e.tick(7);
   ctx.suspend(at(3)).then(() => (e.stop(), ctx.resume()));

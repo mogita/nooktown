@@ -2,15 +2,15 @@
 
 <img src="public/assets/sun-night.png" alt="Nooktown on a clear night" width="100%">
 
-A calm lofi vibe mixer with lofi beats, rain sounds and white noise to study, sleep and unwind. A black cat sits on a rooftop ledge above a quiet hillside town while the music, rain and vinyl crackle are synthesized live in your browser. Pick the weather and the time of day, then mix it your way.
+A calm lofi vibe mixer with lofi beats, rain sounds and white noise to study, sleep and unwind. A black cat sits on a rooftop ledge above a quiet hillside town, or on the sill of a big window looking out at a tree, while the music, rain and vinyl crackle are synthesized live in your browser. Pick the place, the weather and the time of day, then mix it your way.
 
 Try it at https://nooktown.mogita.rocks, or add it to your home screen to use it like an app.
 
 ## Features
 
-- Nine pixel art scenes: rainy, cloudy or sunny, by day, evening or night, with dithered transitions, rain, glowing lights and fireflies.
-- Live Web Audio music: electric piano, bass and dusty drums with tape wobble. The chords change with the time of day.
-- Ambience that follows the scene: rain, wind or breeze; birds, chimes or crickets; vinyl crackle.
+- Two places, a rooftop and a room by the window, each with nine pixel art scenes: rainy, cloudy or sunny, by day, evening or night, with dithered transitions, rain, glowing lights and fireflies.
+- Live Web Audio music: electric piano, bass and dusty drums with tape wobble. The chords change with the time of day and the place.
+- Ambience that follows the scene: rain, wind or breeze; birds, chimes or crickets; vinyl crackle. Indoors the window muffles the outside.
 - A turntable brake and spin-up when you pause and play.
 - Remembers your mix, and works offline once installed.
 
@@ -32,7 +32,7 @@ sh art/variants.sh
 python3 art/snap.py
 ```
 
-`art/variants.sh` asks Codex for any missing weather and time variants of `art/raw/rain-day.png`. `art/snap.py` snaps every raw image into `public/assets/` and fixes the ledge reflections, the moon and the bulb wire, then renders the link preview card `public/og.png`.
+`art/prompt-base.txt` and `art/prompt-room.txt` are the prompts for the rainy day scenes of each place. `art/variants.sh` asks Codex for any missing weather and time variants of them. `art/snap.py` snaps every raw image into `public/assets/` and fixes the ledge reflections, the moon and the bulb wire, then renders the link preview card `public/og.png`.
 
 ## Layout
 

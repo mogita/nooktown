@@ -32,7 +32,7 @@
 </head>
 <body>
 <h1 class="sr">Nooktown: lofi beats and rain sounds to study, sleep and unwind</h1>
-<p class="sr">Free lofi music, rain sounds and white noise, synthesized live in your browser. Pick rainy, cloudy or sunny weather by day, evening or night, then mix electric piano, bass, drums, rain, wind, birds, crickets and vinyl crackle over a cozy pixel art rooftop where a black cat watches the town.</p>
+<p class="sr">Free lofi music, rain sounds and white noise, synthesized live in your browser. Pick rainy, cloudy or sunny weather by day, evening or night, then mix electric piano, bass, drums, rain, wind, birds, crickets and vinyl crackle on a cozy pixel art rooftop or by a big window, where a black cat watches the town or the tree outside.</p>
 <canvas id="scene" aria-hidden="true"></canvas>
 
 <button id="start" class="start" aria-label="Play">
@@ -55,6 +55,11 @@
     <button id="toggle" class="btn" aria-label="Pause">
       <svg class="i-pause" viewBox="0 0 24 24"><path d="M9 6.5v11M15 6.5v11" stroke-width="2.2"/></svg>
       <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5.6v12.8a.9.9 0 0 0 1.4.76l10-6.4a.9.9 0 0 0 0-1.52l-10-6.4A.9.9 0 0 0 8 5.6z"/></svg>
+    </button>
+    <span class="sep"></span>
+    <button id="place" class="btn" aria-label="By the window" title="By the window">
+      <svg class="i-in" viewBox="0 0 24 24"><path d="M6.5 18V5A1.5 1.5 0 0 1 8 3.5h8A1.5 1.5 0 0 1 17.5 5v13M4.5 18h15M12 3.5V18M6.5 10.5h11"/></svg>
+      <svg class="i-out" viewBox="0 0 24 24"><path d="M4 20V4M20 20V4M4 6Q12 14 20 6"/><path class="dots" d="M8 12.4h0M12 13.6h0M16 12.4h0"/></svg>
     </button>
     <span class="sep"></span>
     <div class="seg" role="radiogroup" aria-label="Weather" data-key="weather">

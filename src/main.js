@@ -1,16 +1,18 @@
 import { Engine, DEFAULT_LEVELS, WEATHER_SOUNDS } from './audio.js';
 import { Scene, effects, favicon } from './scene.js';
 
+const PLACES = ['roof', 'room'];
 const WEATHERS = ['rain', 'cloud', 'sun'];
 const TIMES = ['day', 'evening', 'night'];
+const PLACE_NAMES = { roof: 'On the rooftop', room: 'By the window' };
 const natureSound = () => (state.time === 'night' ? 'Crickets' : state.weather === 'rain' || state.time === 'evening' ? 'Chimes' : 'Birds');
 const FADERS = [
   ['music', 'keys', 'Keys'], ['music', 'bass', 'Bass'], ['music', 'drums', 'Drums'],
   ['ambience', 'weather'], ['ambience', 'nature'], ['ambience', 'vinyl', 'Vinyl'],
   ['master', 'master', 'Master'],
 ];
-const CAT_AT = [124, 105];
-const LEDGE = [101, 7];
+// On the 249-wide base grid: where the cat sits, the ledge's top row and depth, and indoors the window glass. On the sill the tail hangs over the edge.
+const SPOTS = { roof: { cat: [124, 105], ledge: [101, 7] }, room: { cat: [127, 103], ledge: [100, 4], window: [71, 14, 113, 80], hang: true } };
 const IDLE_MS = 3500;
 
 const $ = (s) => document.querySelector(s);
@@ -18,17 +20,18 @@ const body = document.body, ui = $('#ui'), mixer = $('#mixer'), mixBtn = $('#mix
 
 const hour = new Date().getHours();
 const custom = {};
-const state = { weather: 'rain', time: hour >= 7 && hour < 17 ? 'day' : hour >= 17 && hour < 20 ? 'evening' : 'night', levels: { ...DEFAULT_LEVELS } };
+const state = { place: 'roof', weather: 'rain', time: hour >= 7 && hour < 17 ? 'day' : hour >= 17 && hour < 20 ? 'evening' : 'night', levels: { ...DEFAULT_LEVELS } };
 try {
   const saved = JSON.parse(localStorage.getItem('nook:v3'));
+  if (PLACES.includes(saved?.place)) state.place = saved.place;
   if (WEATHERS.includes(saved?.weather)) state.weather = saved.weather;
   if (TIMES.includes(saved?.time)) state.time = saved.time;
   for (const k in state.levels) if (Number.isFinite(saved?.levels?.[k])) custom[k] = state.levels[k] = Math.min(1, Math.max(0, saved.levels[k]));
 } catch {}
 // Only sliders the listener moved are stored, so untouched ones follow future default changes.
-const save = () => { try { localStorage.setItem('nook:v3', JSON.stringify({ weather: state.weather, time: state.time, levels: custom })); } catch {} };
+const save = () => { try { localStorage.setItem('nook:v3', JSON.stringify({ place: state.place, weather: state.weather, time: state.time, levels: custom })); } catch {} };
 
-const sceneKey = () => `${state.weather}-${state.time}`;
+const sceneKey = ({ place, weather, time } = state) => `${place === 'room' ? 'room-' : ''}${weather}-${time}`;
 const sceneName = () => `${{ rain: 'Rainy', cloud: 'Cloudy', sun: state.time === 'day' ? 'Sunny' : 'Clear' }[state.weather]} ${state.time}`;
 
 // Scene: the CSS background shows the art instantly and stays as a fallback if WebGL2 is unavailable.
@@ -47,12 +50,13 @@ function showScene(instant) {
   });
 }
 try {
-  scene = new Scene(canvas, { cat: CAT_AT, ledge: LEDGE });
+  scene = new Scene(canvas);
   const first = sceneKey();
-  const keys = [first, ...WEATHERS.flatMap((w) => TIMES.map((t) => `${w}-${t}`)).filter((k) => k !== first)];
-  for (const key of keys) {
-    const [w, t] = key.split('-');
-    loads[key] = (loads[keys[0]] ?? Promise.resolve()).then(() => scene.load(key, `assets/${key}.png`, effects(w, t)));
+  const all = PLACES.flatMap((place) => WEATHERS.flatMap((weather) => TIMES.map((time) => ({ place, weather, time }))));
+  // The current scene loads first, then the rest, with this place's scenes queued ahead of the other's.
+  for (const s of [state, ...all.sort((a, b) => (b.place === state.place) - (a.place === state.place))]) {
+    const key = sceneKey(s);
+    loads[key] ??= (loads[first] ?? Promise.resolve()).then(() => scene.load(key, `assets/${key}.png`, effects(s.weather, s.time), SPOTS[s.place]));
   }
   loads[first].then(() => {
     showScene(true);
@@ -94,8 +98,8 @@ function pause() {
 }
 const toggle = () => (playing ? pause() : play());
 
-function flashCaption() {
-  caption.textContent = sceneName();
+function flashCaption(text = sceneName()) {
+  caption.textContent = text;
   caption.classList.add('show');
   clearTimeout(flashCaption.t);
   flashCaption.t = setTimeout(() => caption.classList.remove('show'), 2600);
@@ -166,6 +170,11 @@ function render() {
   const sun = $('[data-value="sun"]'), sunName = state.time === 'day' ? 'Sunny' : 'Clear';
   sun.title = sunName;
   sun.setAttribute('aria-label', sunName);
+  // The place button shows where it takes you, like play and pause.
+  const to = PLACE_NAMES[state.place === 'room' ? 'roof' : 'room'];
+  body.classList.toggle('inside', state.place === 'room');
+  $('#place').title = to;
+  $('#place').setAttribute('aria-label', to);
   faders.forEach((f) => f.render());
 }
 
@@ -175,8 +184,8 @@ function choose(key, value) {
   save();
   render();
   showScene();
-  engine?.setScene(state.weather, state.time);
-  flashCaption();
+  engine?.setScene(state.weather, state.time, state.place);
+  flashCaption(key === 'place' ? PLACE_NAMES[value] : undefined);
 }
 
 for (const seg of segs) {
@@ -210,6 +219,7 @@ function place() {
 }
 addEventListener('resize', place);
 mixBtn.addEventListener('click', () => setMixer(!mixerOpen()));
+$('#place').addEventListener('click', () => choose('place', state.place === 'room' ? 'roof' : 'room'));
 $('#toggle').addEventListener('click', toggle);
 
 // The interface fades away when idle so the scene is all that remains.

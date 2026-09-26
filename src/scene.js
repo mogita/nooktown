@@ -10,7 +10,9 @@ uniform vec2 uArt;
 uniform float uT, uMix;
 uniform vec4 uFxA, uFxB; // rain, glow, fireflies, cloud shadows
 uniform vec3 uTintA, uTintB;
-uniform vec4 uCatRect;
+uniform vec4 uCatA, uCatB;
+uniform vec2 uPose; // cat sprite row (tail pose) for each scene
+uniform vec4 uWinA, uWinB; // window glass indoors; zero size outdoors
 uniform vec2 uLedge; // top row and depth of the ledge surface, for splashes
 uniform float uK; // art pixels per base-grid pixel, so effects keep their size at any art resolution
 out vec4 o;
@@ -29,17 +31,26 @@ float noise(vec2 p) {
 }
 float fbm(vec2 p) { return .55 * noise(p) + .3 * noise(p * 2.1 + 7.) + .15 * noise(p * 4.3 + 13.); }
 
-vec3 look(sampler2D s, sampler2D g, vec2 p, vec4 fx) {
+bool within(vec2 p, vec4 r) { vec2 q = p - r.xy; return all(greaterThanEqual(q, vec2(0))) && all(lessThan(q, r.zw)); }
+
+// Weather shows everywhere outdoors, but indoors only through the window glass and behind the cat; vis returns how much of the outside shows at p. Cloud shadows fall on the rooftop only: through the window they would cross the sky.
+vec3 look(sampler2D s, sampler2D g, vec2 p, vec4 fx, vec4 cat, float pose, vec4 win, out float vis) {
+  vis = win.z == 0. || within(p, win) ? 1. : 0.;
   vec2 uv = (p + .5) / uArt;
   float y = p.y / uArt.y;
   vec3 c = texture(s, uv).rgb;
   vec3 mid = textureLod(s, uv, 2.5 + log2(uK)).rgb;
   c += texture(g, uv).rgb * vec3(1., .85, .65) * 1.6 * fx.y * (.9 + .1 * sin(uT * 1.1 + p.x * .03));
   // Stars twinkle on the darkest skies only; warm points (moon, windows) hold steady.
-  float star = smoothstep(.12, .3, dot(c - mid, vec3(.3, .59, .11))) * (1. - smoothstep(.2, .35, y)) * step(c.r, c.b + .02);
+  float star = smoothstep(.12, .3, dot(c - mid, vec3(.3, .59, .11))) * (1. - smoothstep(.2, .35, y)) * step(c.r, c.b + .02) * vis;
   c *= 1. + star * smoothstep(.8, 1., fx.y) * .5 * sin(uT * (1.5 + 2. * h2(p)) + h2(p + 3.) * 40.);
   float n = fbm(p / (vec2(70., 34.) * uK) + vec2(uT * .018, uT * .004));
-  c *= 1. - step(.5, n + (bayer(p) - .5) * .05) * .14 * fx.w * smoothstep(.2, .38, y);
+  c *= 1. - step(.5, n + (bayer(p) - .5) * .05) * .14 * fx.w * smoothstep(.2, .38, y) * step(win.z, 0.);
+  if (within(p, cat)) {
+    vec4 k = texelFetch(uCat, ivec2(p - cat.xy + vec2(0, pose * cat.w)), 0);
+    c = mix(c, k.rgb, k.a);
+    if (win.z > 0.) vis *= 1. - k.a;
+  }
   return c;
 }
 
@@ -83,15 +94,12 @@ void main() {
   float m = smoothstep(th - .05, th + .05, uMix * 1.1 - .05);
   float e = smoothstep(0., 1., uMix);
   vec4 fx = mix(uFxA, uFxB, e);
-  vec3 c = mix(look(uA, uGA, p, uFxA), look(uB, uGB, p, uFxB), m);
-  vec2 q = p - uCatRect.xy;
-  if (all(greaterThanEqual(q, vec2(0))) && all(lessThan(q, uCatRect.zw))) {
-    vec4 cat = texelFetch(uCat, ivec2(q), 0);
-    c = mix(c, cat.rgb, cat.a);
-  }
-  c += vec3(1., .86, .45) * fireflies(p) * fx.z * .8;
+  float vA, vB;
+  vec3 c = mix(look(uA, uGA, p, uFxA, uCatA, uPose.x, uWinA, vA), look(uB, uGB, p, uFxB, uCatB, uPose.y, uWinB, vB), m);
+  float vis = mix(vA, vB, m);
+  c += vec3(1., .86, .45) * fireflies(p) * fx.z * .8 * vis;
   float rn = .3 * rain(p, 260. * uK, 13. * uK, .07 / uK, 1.) + .18 * rain(p, 190. * uK, 9. * uK, .14 / uK, 2.) + .1 * rain(p, 140. * uK, 6. * uK, .22 / uK, 3.) + splash(p);
-  c = mix(c, mix(mix(uTintA, uTintB, e), vec3(1.), .4), clamp(rn * fx.x, 0., 1.));
+  c = mix(c, mix(mix(uTintA, uTintB, e), vec3(1.), .4), clamp(rn * fx.x * vis, 0., 1.));
   o = vec4(c, 1.);
 }`;
 
@@ -111,31 +119,12 @@ void main() {
   o = vec4(c * (1. - dot(v, v) * .45), 1.);
 }`;
 
-// Original cat, seen from behind, sitting on the ledge. The tail is drawn procedurally.
-const CAT = [
-  '....#.......#....',
-  '....##.....##....',
-  '...####...####...',
-  '...###########...',
-  '..#############..',
-  '..#############..',
-  '..#############..',
-  '...###########...',
-  '....#########....',
-  '.....#######.....',
-  '....#########....',
-  '....#########....',
-  '....#########....',
-  '...###########...',
-  '...###########...',
-  '...###########...',
-  '.###############.',
-  '#################',
-  '#################',
-  '#################',
-  '.###############.',
-];
-const CAT_W = 30, CAT_H = CAT.length + 1;
+// Original cat, a Devon Rex seen from behind, on a 17-wide grid with the ground at y = 22: big low-set ears, a round skull with wide cheekbones narrowing to a wedge at the chin, a chest with straight front legs, and haunches that bulge wider than the head and curve in under the cat. Ellipses are [cx, cy, rx, ry, n] superellipses (n above 2 squares them off); polygons are convex. The tail is drawn procedurally and may hang below the ground, so the sprite is taller.
+const SKULL = [8.5, 5.6, 4.9, 3], HAUNCHES = [8.5, 18.6, 6.6, 3.5, 3];
+const FACE = [[3.6, 5.8], [13.4, 5.8], [8.5, 11.2]];
+const CHEST = [[6.4, 9.6], [10.6, 9.6], [11.6, 11.4], [12.1, 17], [4.9, 17], [5.4, 11.4]];
+const EAR = [[2.6, 0.3], [3.6, 5.6], [7.4, 2.8]];
+const GROUND = 22, CAT_W = 30, CAT_H = 38;
 
 const DUR = 2.4;
 
@@ -152,40 +141,47 @@ function blur(src, w, h, vertical, r) {
   return out;
 }
 
-// Scale2x (EPX): doubles a pixel set while rounding its stair steps, so the cat matches finer art.
-function scale2x(on) {
-  const has = (x, y) => on.has(`${x},${y}`), out = new Set();
-  const pts = [...on].map((k) => k.split(',').map(Number));
-  const xs = pts.map(([x]) => x), ys = pts.map(([, y]) => y);
-  for (let y = Math.min(...ys) - 1; y <= Math.max(...ys) + 1; y++)
-    for (let x = Math.min(...xs) - 1; x <= Math.max(...xs) + 1; x++) {
-      const P = has(x, y), A = has(x, y - 1), B = has(x + 1, y), C = has(x - 1, y), D = has(x, y + 1);
-      const q = [C === A && C !== D && A !== B ? A : P, A === B && A !== C && B !== D ? B : P, D === C && D !== B && C !== A ? C : P, B === D && B !== A && D !== C ? D : P];
-      q.forEach((v, i) => v && out.add(`${2 * x + (i & 1)},${2 * y + (i >> 1)}`));
-    }
-  return out;
-}
 const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 const lerp = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
 
 const css = (c) => `rgb(${c.map((v) => (v * 255) | 0)})`;
 
-// Cat pixels at scale k (1 or 2). The tail is a tapered stroke drawn at that scale, and it moves between a few held
-// curl poses: continuous motion makes edge pixels flicker on and off as the curve crosses the grid.
-export function catPixels(t, twitch, k = 1) {
-  let on = new Set();
-  CAT.forEach((row, y) => [...row].forEach((ch, x) => ch === '#' && !(twitch && y === 0 && x === 5) && on.add(`${x},${y + 1}`)));
-  if (k === 2) on = scale2x(on);
-  const curl = Math.round(2 + 2 * Math.sin(t * 0.9)) / 4;
-  const line = [];
-  for (let i = 0, x = 15, y = CAT.length, a = 0; i < 44; i++) {
-    if (i >= 20) a -= (0.3 + 0.25 * curl) / 4;
+const inEllipse = (x, y, [cx, cy, rx, ry, n = 2]) => Math.abs((x - cx) / rx) ** n + Math.abs((y - cy) / ry) ** n < 1;
+const cross = (x, y, [ax, ay], [bx, by]) => (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+const inPolygon = (x, y, pts) => {
+  const d = pts.map((a, i) => cross(x, y, a, pts[(i + 1) % pts.length]));
+  return d.every((v) => v >= 0) || d.every((v) => v <= 0);
+};
+
+// The tail's centre line with a radius at each step: slim, with a fuller tip. On a ledge it curls up beside the cat; over a sill edge it hangs down with its tip hooked. pose (0 to 1) sets how far it curls.
+function tail(pose, hang) {
+  const line = [], n = hang ? 54 : 44;
+  // On the ledge the root runs a quarter pixel low, so the flat stretch stays one even width on the pixel grid.
+  for (let i = 0, x = hang ? 9.6 : 12.7, y = hang ? 20.8 : 21.25, a = hang ? Math.PI / 2 : 0; i < n; i++) {
+    const s = i / (n - 1);
+    if (hang) a += s > 0.6 ? (1.2 + 0.8 * pose) / (0.4 * n) : 0;
+    else if (i >= 20) a -= (0.3 + 0.25 * pose) / 4;
     x += Math.cos(a) / 4, y += Math.sin(a) / 4;
-    line.push([x, y, i < 20 ? 1 : 1 - (i - 20) / 48]);
+    line.push([x, y, s < 0.6 ? 0.85 - 0.25 * s : 0.7 + 0.65 * Math.min(1, (s - 0.6) / 0.3)]);
   }
+  return line;
+}
+
+// Cat pixels at scale k, drawn from shapes so edges stay smooth at any scale. The tail moves between a few held poses: continuous motion makes edge pixels flicker on and off as the curve crosses the grid.
+export function catPixels(t, twitch, k = 1, hang = false) {
+  const on = new Set(), right = EAR.map(([x, y]) => [17 - x, y]);
+  // A twitch flicks the right ear tip outward.
+  if (twitch) right[0] = [right[0][0] + 0.8, right[0][1] + 1.2];
+  const polygons = [EAR, right, FACE, CHEST];
+  for (let py = 0; py < GROUND * k; py++)
+    for (let px = 0; px < 17 * k; px++) {
+      const x = (px + 0.5) / k, y = (py + 0.5) / k;
+      if (inEllipse(x, y, SKULL) || inEllipse(x, y, HAUNCHES) || polygons.some((g) => inPolygon(x, y, g))) on.add(`${px},${py}`);
+    }
+  const line = tail(Math.round(2 + 2 * Math.sin(t * 0.9)) / 4, hang);
   const xs = line.map((p) => p[0]), ys = line.map((p) => p[1]);
-  for (let py = Math.floor((Math.min(...ys) - 1) * k); py < (Math.max(...ys) + 1) * k; py++)
-    for (let px = Math.floor((Math.min(...xs) - 1) * k); px < (Math.max(...xs) + 1) * k; px++)
+  for (let py = Math.floor((Math.min(...ys) - 2) * k); py < (Math.max(...ys) + 2) * k; py++)
+    for (let px = Math.floor((Math.min(...xs) - 2) * k); px < (Math.max(...xs) + 2) * k; px++)
       if (line.some(([x, y, r]) => Math.hypot((px + 0.5) / k - x, (py + 0.5) / k - y) < r)) on.add(`${px},${py}`);
   return on;
 }
@@ -219,7 +215,7 @@ export function favicon(time, rounded = true) {
   }
   for (const [x, y] of p.stars ?? []) px(x, y, '#cfd8ff');
   for (let y = 28; y < 32; y++) for (let x = 0; x < 32; x++) px(x, y, p.ledge[y === 28 ? 0 : 1]);
-  paintCat(g, catPixels(0, false), p.body, p.rim, 4, 28 - CAT_H);
+  paintCat(g, catPixels(0, false), p.body, p.rim, 4, 28 - GROUND);
   // Rounded corners (app icons stay square: the OS applies its own mask).
   if (rounded) for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
     const dx = Math.max(0, Math.abs(x + 0.5 - 16) - 10), dy = Math.max(0, Math.abs(y + 0.5 - 16) - 10);
@@ -237,9 +233,8 @@ export function effects(weather, time) {
 }
 
 export class Scene {
-  constructor(canvas, { cat, ledge }) {
+  constructor(canvas) {
     this.canvas = canvas;
-    this.base = { cat, ledge };
     const gl = (this.gl = canvas.getContext('webgl2', { antialias: false, alpha: false }));
     if (!gl) throw new Error('WebGL2 unavailable');
     const buf = gl.createBuffer();
@@ -283,7 +278,8 @@ export class Scene {
     return t;
   }
 
-  async load(key, url, fx) {
+  // spot gives, on the 249-wide base grid, where the cat sits, the ledge's top row and depth, and indoors the window glass.
+  async load(key, url, fx, spot) {
     const img = new Image();
     img.src = url;
     await img.decode();
@@ -291,35 +287,36 @@ export class Scene {
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.generateMipmap(gl.TEXTURE_2D);
     if (!this.art) this.setSize(img.width, img.height);
-    const { width: w, height: h } = img;
+    const { width: w, height: h } = img, k = this.k, at = (v) => v.map((x) => x * k);
     const c = Object.assign(document.createElement('canvas'), { width: w, height: h }).getContext('2d');
     c.drawImage(img, 0, 0);
-    const d = c.getImageData(0, 0, w, h).data, tint = [0, 0, 0], sky = ((h * 0.3) | 0) * w;
-    // Average sky colour drives rain and cat rim-light tint; the top row tints the browser chrome above the page.
-    for (let i = 0; i < sky * 4; i += 4) for (let k = 0; k < 3; k++) tint[k] += d[i + k] / 255 / sky;
+    const d = c.getImageData(0, 0, w, h).data, tint = [0, 0, 0], win = spot.window ? at(spot.window) : [0, 0, 0, 0];
+    // Average sky colour (through the window indoors) drives rain and cat rim-light tint; the top row tints the browser chrome above the page.
+    const [sx, sy, sw, sh] = spot.window ? win : [0, 0, w, (h * 0.3) | 0];
+    for (let y = sy; y < sy + sh; y++) for (let x = sx; x < sx + sw; x++) for (let j = 0; j < 3; j++) tint[j] += d[(y * w + x) * 4 + j] / 255 / (sw * sh);
     const sky0 = [0, 0, 0];
-    for (let i = 0; i < w * 4; i += 4) for (let k = 0; k < 3; k++) sky0[k] += d[i + k] / w;
+    for (let i = 0; i < w * 4; i += 4) for (let j = 0; j < 3; j++) sky0[j] += d[i + j] / w;
     // Glow map: keep only light sources brighter than the scenery, then blur them into a soft halo.
     // Puddle reflections on the ledge are not sources, and nothing glows on the lip or face that faces the viewer.
-    const [top, depth] = this.ledge;
+    const [top, depth] = at(spot.ledge);
     let g = new Float32Array(w * h * 4);
     for (let i = 0; i < top * w * 4; i += 4) {
-      const k = Math.max(0, (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 255 - 0.55) / 0.45;
-      for (let j = 0; j < 3; j++) g[i + j] = d[i + j] * k;
+      const l = Math.max(0, (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 255 - 0.55) / 0.45;
+      for (let j = 0; j < 3; j++) g[i + j] = d[i + j] * l;
     }
-    for (let pass = 0; pass < 6; pass++) g = blur(g, w, h, pass % 2, 2 * this.k);
+    for (let pass = 0; pass < 6; pass++) g = blur(g, w, h, pass % 2, 2 * k);
     g.fill(0, (top + depth) * w * 4);
     const glow = this.texture(gl.LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, Uint8ClampedArray.from(g, (v, i) => (i % 4 === 3 ? 255 : v)));
-    this.scenes[key] = { tex, glow, fx, tint, top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
+    const cat = at(spot.cat), rect = [cat[0] - 8 * k, cat[1] - GROUND * k, CAT_W * k, CAT_H * k];
+    this.scenes[key] = { tex, glow, fx, tint, cat, rect, win, pose: spot.hang ? 1 : 0, ledge: [top, depth], top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
   }
 
   // Scene positions are given on the 249-wide base grid; finer art scales them by k.
   setSize(w, h) {
     const gl = this.gl, k = (this.k = Math.max(1, Math.round(w / 249)));
-    this.catAt = this.base.cat.map((v) => v * k);
-    this.ledge = this.base.ledge.map((v) => v * k);
-    Object.assign(this.catCanvas, { width: CAT_W * k, height: CAT_H * k });
+    // One row per tail pose: resting on the ledge, and hanging over the edge.
+    Object.assign(this.catCanvas, { width: CAT_W * k, height: 2 * CAT_H * k });
     this.art = [w, h];
     this.frameTex = this.texture(gl.LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -340,8 +337,10 @@ export class Scene {
     const body = tint.map((v) => v * 0.14);
     if (t > this.twitch + 0.18 && Math.random() < 0.003) this.twitch = t;
     this.cat2d.clearRect(0, 0, this.catCanvas.width, this.catCanvas.height);
-    const on = catPixels(t, t - this.twitch < 0.18, this.k === 2 ? 2 : 1);
-    paintCat(this.cat2d, on, css(body), css(lerp(body, tint, 0.4)));
+    for (const hang of [false, true]) {
+      const on = catPixels(t, t - this.twitch < 0.18, this.k === 2 ? 2 : 1, hang);
+      paintCat(this.cat2d, on, css(body), css(lerp(body, tint, 0.4)), 0, hang * CAT_H * this.k);
+    }
   }
 
   frame() {
@@ -373,10 +372,10 @@ export class Scene {
     gl.uniform1f(u.uT, t % 3600), gl.uniform1f(u.uMix, this.mix);
     gl.uniform4fv(u.uFxA, A.fx), gl.uniform4fv(u.uFxB, B.fx);
     gl.uniform3fv(u.uTintA, A.tint), gl.uniform3fv(u.uTintB, B.tint);
-    const k = this.k;
-    gl.uniform4f(u.uCatRect, this.catAt[0] - 8 * k, this.catAt[1] - CAT_H * k, CAT_W * k, CAT_H * k);
-    gl.uniform2fv(u.uLedge, this.ledge);
-    gl.uniform1f(u.uK, k);
+    gl.uniform4fv(u.uCatA, A.rect), gl.uniform4fv(u.uCatB, B.rect), gl.uniform2f(u.uPose, A.pose, B.pose);
+    gl.uniform4fv(u.uWinA, A.win), gl.uniform4fv(u.uWinB, B.win);
+    gl.uniform2fv(u.uLedge, B.ledge);
+    gl.uniform1f(u.uK, this.k);
     this.draw();
 
     const dpr = Math.min(devicePixelRatio || 1, 2), c = this.canvas;
@@ -384,7 +383,7 @@ export class Scene {
     if (c.width !== cw || c.height !== ch) (c.width = cw), (c.height = ch);
     const scale = Math.max(cw / w, ch / h), vw = cw / scale;
     // Keep the cat in view when the crop is narrow (phones in portrait).
-    const ox = Math.min(Math.max(this.catAt[0] - vw / 2, 0), w - vw), oy = Math.max(0, (h - ch / scale) / 2);
+    const ox = Math.min(Math.max(A.cat[0] + (B.cat[0] - A.cat[0]) * e - vw / 2, 0), w - vw), oy = Math.max(0, (h - ch / scale) / 2);
     ({ p, u } = this.present);
     gl.useProgram(p);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
