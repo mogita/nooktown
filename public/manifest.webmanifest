@@ -1,7 +1,8 @@
 {
   "name": "Nooktown",
   "short_name": "Nooktown",
-  "description": "A calm lofi vibe mixer: a pixel art rooftop with a cat, rain and vinyl crackle.",
+  "description": "Lofi beats, rain sounds and white noise to study, sleep and unwind, over a pixel art rooftop with a black cat.",
+  "categories": ["music", "entertainment", "lifestyle"],
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

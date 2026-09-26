@@ -183,3 +183,6 @@ if __name__ == '__main__':
     wire = wire_path(assets / 'rain-day.png', k)
     for png in sorted(assets.glob('*.png')):
         mend_wire(png, wire)
+    # Link preview card, enlarged without smoothing so the pixels stay crisp when sites scale it down.
+    card = Image.open(assets / 'sun-night.png')
+    card.resize((card.width * 3, card.height * 3), Image.NEAREST).save(assets.parent / 'og.png', optimize=True)

@@ -2,7 +2,7 @@
 
 <img src="public/assets/sun-night.png" alt="Nooktown on a clear night" width="100%">
 
-A calm lofi vibe mixer. A black cat sits on a rooftop ledge above a quiet hillside town while the music, rain and vinyl crackle are synthesized live in your browser. Pick the weather and the time of day, then mix it your way.
+A calm lofi vibe mixer with lofi beats, rain sounds and white noise to study, sleep and unwind. A black cat sits on a rooftop ledge above a quiet hillside town while the music, rain and vinyl crackle are synthesized live in your browser. Pick the weather and the time of day, then mix it your way.
 
 Try it at https://nooktown.mogita.rocks, or add it to your home screen to use it like an app.
 
@@ -32,14 +32,14 @@ sh art/variants.sh
 python3 art/snap.py
 ```
 
-`art/variants.sh` asks Codex for any missing weather and time variants of `art/raw/rain-day.png`. `art/snap.py` snaps every raw image into `public/assets/` and fixes the ledge reflections, the moon and the bulb wire.
+`art/variants.sh` asks Codex for any missing weather and time variants of `art/raw/rain-day.png`. `art/snap.py` snaps every raw image into `public/assets/` and fixes the ledge reflections, the moon and the bulb wire, then renders the link preview card `public/og.png`.
 
 ## Layout
 
 - `src/audio.js`: Web Audio engine (FM electric piano, bass, drums, ambience, tape wow, turntable brake).
 - `src/scene.js`: WebGL2 renderer (scene transitions, rain and splashes, glow, fireflies, cloud shadows, the cat, the tab icon).
 - `src/main.js`: state, controls and persistence.
-- `public/`: scene art, app icons, web manifest and service worker.
+- `public/`: scene art, link preview card, app icons, web manifest, service worker, robots.txt and sitemap.
 
 ## License
 

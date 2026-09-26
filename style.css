@@ -41,6 +41,8 @@ canvas.ready { opacity: 1; }
 
 button { font: inherit; }
 
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
 svg {
   width: 20px;
   height: 20px;
