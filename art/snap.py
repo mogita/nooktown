@@ -146,11 +146,11 @@ def repaint_moon(path, center=(211.5, 6.5), radius=4.7, offset=2.4, erase=(203, 
 
 if __name__ == '__main__':
     root = Path(__file__).parent
-    base = snap(root / 'raw/rain-day.png', root.parent / 'assets/rain-day.png')
+    assets = root.parent / 'public/assets'
+    base = snap(root / 'raw/rain-day.png', assets / 'rain-day.png')
     for src in sorted((root / 'raw').glob('*.png')):
         if src.stem != 'rain-day':
-            snap(src, root.parent / 'assets' / src.name, base)
-    assets = root.parent / 'assets'
+            snap(src, assets / src.name, base)
     for wet, dry in (('rain-evening', 'cloud-evening'), ('rain-night', 'cloud-night')):
         dry_face(assets / f'{wet}.png', assets / f'{dry}.png')
     cool_face(assets / 'rain-evening.png', assets / 'rain-night.png')

@@ -249,5 +249,5 @@ $('#start').addEventListener('click', () => {
 render();
 place();
 
-// Installed app: network first, cache only as an offline fallback.
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+// Installed app: network first, cache only as an offline fallback. Skipped in dev so it never caches dev modules.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});

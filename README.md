@@ -1,26 +1,46 @@
 # Nooktown
 
-A calm lofi vibe mixer: a pixel art rooftop with a cat, live synthesized music, rain, wind, birds, chimes, crickets and vinyl crackle. No dependencies and no build step.
+<img src="public/assets/sun-night.png" alt="Nooktown on a clear night" width="100%">
 
-## Run
+A calm lofi vibe mixer. A black cat sits on a rooftop ledge above a quiet hillside town while the music, rain and vinyl crackle are synthesized live in your browser. Pick the weather and the time of day, then mix it your way.
+
+Try it at https://nooktown.mogita.rocks, or add it to your home screen to use it like an app.
+
+## Features
+
+- Nine pixel art scenes: rainy, cloudy or sunny, by day, evening or night, with dithered transitions, rain, glowing lights and fireflies.
+- Live Web Audio music: electric piano, bass and dusty drums with tape wobble. The chords change with the time of day.
+- Ambience that follows the scene: rain, wind or breeze; birds, chimes or crickets; vinyl crackle.
+- A turntable brake and spin-up when you pause and play.
+- Remembers your mix, and works offline once installed.
+
+## Development
 
 ```sh
-python3 serve.py
+npm install
+npm run dev
 ```
 
-Open http://localhost:5173. `python3 serve.py <host> <port>` serves on another address, for example your LAN IP to test on a phone. The audio check lives at http://localhost:5173/tests/audio.html and prints PASS or FAIL.
+Open http://localhost:5173. Run `npm run dev -- --host` to test on a phone on the same network. The audio check lives at http://localhost:5173/tests/audio.html and prints PASS or FAIL.
 
-## Deploy
+## Art
+
+The scenes were generated with Codex and snapped to their true pixel grid. The snapper needs numpy and Pillow.
 
 ```sh
-wrangler deploy
+sh art/variants.sh
+python3 art/snap.py
 ```
 
-Publishes the app files to https://nooktown.mogita.rocks as a static-assets Worker. `.assetsignore` keeps the art sources, tests and dev files out.
+`art/variants.sh` asks Codex for any missing weather and time variants of `art/raw/rain-day.png`. `art/snap.py` snaps every raw image into `public/assets/` and fixes the ledge reflections, the moon and the bulb wire.
 
 ## Layout
 
-- `src/audio.js`: Web Audio engine (FM electric piano, bass, drums, ambience, tape wow).
-- `src/scene.js`: WebGL2 renderer (dithered scene transitions, rain, glow, fireflies, cloud shadows, cat sprite).
-- `src/main.js`: state, controls, persistence.
-- `art/`: Codex prompts and raw images. `sh art/variants.sh` regenerates missing variants, `python3 art/snap.py` snaps them into `assets/`.
+- `src/audio.js`: Web Audio engine (FM electric piano, bass, drums, ambience, tape wow, turntable brake).
+- `src/scene.js`: WebGL2 renderer (scene transitions, rain and splashes, glow, fireflies, cloud shadows, the cat, the tab icon).
+- `src/main.js`: state, controls and persistence.
+- `public/`: scene art, app icons, web manifest and service worker.
+
+## License
+
+MIT © [mogita](https://github.com/mogita)

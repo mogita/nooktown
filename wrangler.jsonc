@@ -2,6 +2,7 @@
   "$schema": "https://unpkg.com/wrangler/config-schema.json",
   "name": "nooktown",
   "compatibility_date": "2026-09-01",
-  "assets": { "directory": "." },
+  "build": { "command": "npm run build" },
+  "assets": { "directory": "./dist" },
   "routes": [{ "pattern": "nooktown.mogita.rocks", "custom_domain": true }]
 }
