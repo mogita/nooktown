@@ -119,12 +119,16 @@ def mend_wire(path, wire):
     print(f'{path}: filled {len(gaps)} wire gaps')
 
 
-def repaint_moon(path, k=1):
-    """Replace the generated crescent with a round, opaque moon: a lit crescent that fades across the terminator
-    into a faint dark side, placed wholly inside the dark upper sky band."""
+def repaint_moon(path, k=1, lit=0.36, tilt=40):
+    """Replace the generated crescent with a round, opaque waxing crescent moon: the lit limb fades across an
+    elliptical terminator into a faint dark side, placed wholly inside the dark upper sky band.
+
+    The lit limb always faces the Sun. After sunset the Sun is below the western horizon (lower right, where it
+    sets in the evening scene), so the limb points `tilt` degrees below horizontal and the horns tip up-left.
+    """
     a = np.asarray(Image.open(path).convert('RGB'), np.float32)
     x0, y0, x1, y1 = (v * k for v in (203, 2, 220, 17))
-    cx, cy, radius, offset = 211.5 * k, 6.5 * k, 4.7 * k, 2.4 * k
+    cx, cy, radius = 211.5 * k, 6.5 * k, 4.7 * k
     lum = a.mean(2)
     for y in range(y0, y1):
         row = lum[y, x0 - 6 * k:x1 + 6 * k]
@@ -133,21 +137,32 @@ def repaint_moon(path, k=1):
             if lum[y, x] > sky + 8:
                 near = [a[y, i] for i in range(x - 5 * k, x + 5 * k + 1) if abs(lum[y, i] - sky) <= 8]
                 a[y, x] = np.median(near, axis=0) if near else a[y, x]
-    ramp = [(-0.8 * k, '#28304d'), (0.0, '#5d6076'), (0.8 * k, '#9c9596'), (1.6 * k, '#d9cdb2'), (9e9, '#f4e9cc')]
+    ramp = [(-0.8 * k, '#232c4c'), (0.0, '#4c5170'), (0.8 * k, '#8d8a90'), (1.6 * k, '#cfc3a9'), (9e9, '#f4e9cc')]
+    bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
+    # Faint lunar seas on the lit side, in moon-radius units from the centre.
+    seas = [(0.55, -0.38, 0.15), (0.5, 0.22, 0.17), (0.22, -0.02, 0.14)]
     rgb = lambda h: np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], np.float32)
     for y in range(int(cy - radius) - 1, int(cy + radius) + 2):
         for x in range(int(cx - radius) - 1, int(cx + radius) + 2):
-            d = np.hypot(x + 0.5 - cx, y + 0.5 - cy)
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            d = np.hypot(dx, dy)
             if d > radius:
                 continue
-            # Distance outside the shadow disc (same size, shifted left) sets how lit a pixel is.
-            e = np.hypot(x + 0.5 - cx + offset, y + 0.5 - cy) - radius
+            # u runs toward the lit limb (the Sun), v along the horns.
+            u = dx * np.cos(np.radians(tilt)) + dy * np.sin(np.radians(tilt))
+            v = -dx * np.sin(np.radians(tilt)) + dy * np.cos(np.radians(tilt))
+            # The terminator is half an ellipse: at this row it sits (1 - 2 * lit) of the way to the right limb.
+            # Ordered dither across the steps keeps the terminator soft instead of striped.
+            e = u - (1 - 2 * lit) * np.sqrt(max(radius ** 2 - v ** 2, 0)) + (bayer[y % 4][x % 4] / 16 - 0.47) * 1.2 * k
             color = next(c for limit, c in ramp if e <= limit)
-            if color == '#28304d' and d > radius - k:
-                color = '#303957'
+            if color == '#232c4c' and d > radius - k:
+                color = '#2b3556'
+            sea = any(np.hypot(u / radius - sx, v / radius - sy) < sr for sx, sy, sr in seas)
+            if sea and color in ('#f4e9cc', '#cfc3a9'):
+                color = '#d3c6aa' if color == '#f4e9cc' else '#b5a993'
             a[y, x] = rgb(color)
     Image.fromarray(a.astype(np.uint8)).save(path)
-    print(f'{path}: repainted moon at ({cx}, {cy}) r {radius:.1f}')
+    print(f'{path}: repainted waxing crescent at ({cx}, {cy}) r {radius:.1f}, {lit:.0%} lit, tilted {tilt} deg')
 
 
 if __name__ == '__main__':
