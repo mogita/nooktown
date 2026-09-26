@@ -21,7 +21,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Run `npm run dev -- --host` to test on a phone on the same network. The audio check lives at http://localhost:5173/tests/audio.html and prints PASS or FAIL.
+Open http://localhost:5173. Run `npm run dev -- --host` to test on a phone on the same network. The audio check lives at http://localhost:5173/tests/audio.html and prints PASS or FAIL. Run `npm test` to check that the cat's tail never breaks apart.
 
 ## Art
 

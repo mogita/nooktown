@@ -170,19 +170,23 @@ const lerp = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
 
 const css = (c) => `rgb(${c.map((v) => (v * 255) | 0)})`;
 
-function catPixels(t, twitch) {
-  const on = new Set();
-  const put = (x, y) => on.add(`${x},${y}`);
-  CAT.forEach((row, y) => [...row].forEach((ch, x) => ch === '#' && !(twitch && y === 0 && x === 5) && put(x, y + 1)));
-  // Tail rests along the ledge; only the tip curls and flicks.
-  let x = 15, y = CAT.length + 0.5, a = 0;
-  const lift = 0.5 + 0.5 * Math.sin(t * 0.9);
-  for (let k = 0; k < 11; k++) {
-    if (k >= 5) a += -0.3 - 0.25 * lift + 0.08 * Math.sin(t * 2.1 - k);
-    x += Math.cos(a), y += Math.sin(a);
-    const w = k < 6 ? 2 : 1;
-    for (let i = 0; i < w; i++) for (let j = 0; j < w; j++) put(Math.floor(x) + i, Math.floor(y) - j);
+// Cat pixels at scale k (1 or 2). The tail is a tapered stroke drawn at that scale, and it moves between a few held
+// curl poses: continuous motion makes edge pixels flicker on and off as the curve crosses the grid.
+export function catPixels(t, twitch, k = 1) {
+  let on = new Set();
+  CAT.forEach((row, y) => [...row].forEach((ch, x) => ch === '#' && !(twitch && y === 0 && x === 5) && on.add(`${x},${y + 1}`)));
+  if (k === 2) on = scale2x(on);
+  const curl = Math.round(2 + 2 * Math.sin(t * 0.9)) / 4;
+  const line = [];
+  for (let i = 0, x = 15, y = CAT.length, a = 0; i < 44; i++) {
+    if (i >= 20) a -= (0.3 + 0.25 * curl) / 4;
+    x += Math.cos(a) / 4, y += Math.sin(a) / 4;
+    line.push([x, y, i < 20 ? 1 : 1 - (i - 20) / 48]);
   }
+  const xs = line.map((p) => p[0]), ys = line.map((p) => p[1]);
+  for (let py = Math.floor((Math.min(...ys) - 1) * k); py < (Math.max(...ys) + 1) * k; py++)
+    for (let px = Math.floor((Math.min(...xs) - 1) * k); px < (Math.max(...xs) + 1) * k; px++)
+      if (line.some(([x, y, r]) => Math.hypot((px + 0.5) / k - x, (py + 0.5) / k - y) < r)) on.add(`${px},${py}`);
   return on;
 }
 
@@ -336,8 +340,8 @@ export class Scene {
     const body = tint.map((v) => v * 0.14);
     if (t > this.twitch + 0.18 && Math.random() < 0.003) this.twitch = t;
     this.cat2d.clearRect(0, 0, this.catCanvas.width, this.catCanvas.height);
-    const on = catPixels(t, t - this.twitch < 0.18);
-    paintCat(this.cat2d, this.k === 2 ? scale2x(on) : on, css(body), css(lerp(body, tint, 0.4)));
+    const on = catPixels(t, t - this.twitch < 0.18, this.k === 2 ? 2 : 1);
+    paintCat(this.cat2d, on, css(body), css(lerp(body, tint, 0.4)));
   }
 
   frame() {
