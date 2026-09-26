@@ -7,6 +7,7 @@
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --btn: 44px;
   --bottom: max(18px, calc(env(safe-area-inset-bottom) + 8px));
+  /* Keep -webkit-backdrop-filter before backdrop-filter: the build minifier drops the standard one when it comes first. */
   --blur: blur(24px) saturate(1.4);
 }
 
@@ -78,8 +79,8 @@ svg {
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
   box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.6);
   transition: scale 0.7s var(--ease), background 0.4s;
 }
@@ -110,8 +111,8 @@ svg {
   left: 50%;
   background: var(--glass);
   border: 1px solid var(--line);
-  backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
+  backdrop-filter: var(--blur);
   box-shadow: 0 16px 48px -16px rgba(0, 0, 0, 0.5);
 }
 
