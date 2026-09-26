@@ -138,6 +138,7 @@ def repaint_moon(path, k=1, lit=0.36, tilt=40):
                 near = [a[y, i] for i in range(x - 5 * k, x + 5 * k + 1) if abs(lum[y, i] - sky) <= 8]
                 a[y, x] = np.median(near, axis=0) if near else a[y, x]
     ramp = [(-0.8 * k, '#232c4c'), (0.0, '#4c5170'), (0.8 * k, '#8d8a90'), (1.6 * k, '#cfc3a9'), (9e9, '#f4e9cc')]
+    sub = (np.arange(8) + 0.5) / 8 - 0.5
     bayer = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
     # Faint lunar seas on the lit side, in moon-radius units from the centre.
     seas = [(0.55, -0.38, 0.15), (0.5, 0.22, 0.17), (0.22, -0.02, 0.14)]
@@ -146,7 +147,9 @@ def repaint_moon(path, k=1, lit=0.36, tilt=40):
         for x in range(int(cx - radius) - 1, int(cx + radius) + 2):
             dx, dy = x + 0.5 - cx, y + 0.5 - cy
             d = np.hypot(dx, dy)
-            if d > radius:
+            # Supersampled edge coverage blends the limb into the sky so the small disc reads round, not squared.
+            cover = np.mean(np.hypot(dx + sub[:, None], dy + sub[None, :]) <= radius)
+            if cover == 0:
                 continue
             # u runs toward the lit limb (the Sun), v along the horns.
             u = dx * np.cos(np.radians(tilt)) + dy * np.sin(np.radians(tilt))
@@ -160,7 +163,7 @@ def repaint_moon(path, k=1, lit=0.36, tilt=40):
             sea = any(np.hypot(u / radius - sx, v / radius - sy) < sr for sx, sy, sr in seas)
             if sea and color in ('#f4e9cc', '#cfc3a9'):
                 color = '#d3c6aa' if color == '#f4e9cc' else '#b5a993'
-            a[y, x] = rgb(color)
+            a[y, x] = a[y, x] * (1 - cover) + rgb(color) * cover
     Image.fromarray(a.astype(np.uint8)).save(path)
     print(f'{path}: repainted waxing crescent at ({cx}, {cy}) r {radius:.1f}, {lit:.0%} lit, tilted {tilt} deg')
 
