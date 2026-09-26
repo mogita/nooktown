@@ -1,0 +1,66 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Nooktown audio check</title>
+<pre id="out">rendering…</pre>
+<script type="module">
+// Renders every scene offline: each channel solo must be audible, the default mix must not clip.
+import { Engine, CHANNELS, DEFAULT_LEVELS } from '../src/audio.js';
+
+const SR = 44100, SECONDS = 12;
+const silent = Object.fromEntries(Object.keys(DEFAULT_LEVELS).map((k) => [k, 0]));
+const solo = (ch) => (ch === 'weather' ? { rain: 0.7, wind: 0.7, breeze: 0.7 } : { [ch]: 0.7 });
+
+async function render(weather, time, levels) {
+  const ctx = new OfflineAudioContext(2, SR * SECONDS, SR);
+  const e = new Engine(ctx, { weather, time, levels });
+  e.fadeTo(1, 0.01);
+  e.tick(SECONDS);
+  const b = await ctx.startRendering();
+  let peak = 0;
+  for (let c = 0; c < 2; c++) for (const v of b.getChannelData(c)) peak = Math.max(peak, Math.abs(v));
+  // Approximate K-weighting (as in LUFS) so levels compare the way ears hear them.
+  const k = new OfflineAudioContext(2, b.length, SR), src = new AudioBufferSourceNode(k, { buffer: b });
+  src.connect(new BiquadFilterNode(k, { type: 'highpass', frequency: 100, Q: 0.5 })).connect(new BiquadFilterNode(k, { type: 'highshelf', frequency: 1500, gain: 4 })).connect(k.destination);
+  src.start();
+  const w = await k.startRendering();
+  let sum = 0;
+  for (let c = 0; c < 2; c++) for (const v of w.getChannelData(c)) sum += v * v;
+  return { rms: 10 * Math.log10(sum / (2 * b.length) + 1e-12), peak };
+}
+
+const lines = [], fails = [];
+for (const weather of ['rain', 'cloud', 'sun']) for (const time of ['day', 'evening', 'night']) {
+  const row = [`${weather}-${time}`.padEnd(14)];
+  for (const ch of CHANNELS) {
+    const { rms } = await render(weather, time, { ...silent, master: 1, ...solo(ch) });
+    row.push(`${ch} ${rms.toFixed(1)}`);
+    if (rms < -55) fails.push(`${weather}-${time} ${ch} silent (${rms.toFixed(1)} dB)`);
+  }
+  const mix = await render(weather, time, { ...DEFAULT_LEVELS, master: 1 });
+  row.push(`| mix ${mix.rms.toFixed(1)} dB peak ${mix.peak.toFixed(2)}`);
+  if (mix.peak >= 1) fails.push(`${weather}-${time} mix clips (peak ${mix.peak.toFixed(2)})`);
+  lines.push(row.join('  '));
+}
+// Turntable: pitch falls during the brake, the stop is silent, and the spin-up brings sound back.
+{
+  const ctx = new OfflineAudioContext(2, SR * 7, SR), q = 128 / SR, at = (t) => Math.round(t / q) * q;
+  const e = new Engine(ctx, { weather: 'rain', time: 'day', levels: { ...silent, master: 1, keys: 0.7 } });
+  e.fadeTo(1, 0.01);
+  e.tick(7);
+  ctx.suspend(at(3)).then(() => (e.stop(), ctx.resume()));
+  ctx.suspend(at(4)).then(() => (e.settle(), ctx.resume()));
+  ctx.suspend(at(4.5)).then(() => (e.start(), ctx.resume()));
+  const d = (await ctx.startRendering()).getChannelData(0);
+  const slice = (a, b) => d.subarray(a * SR, b * SR);
+  const zcr = (x) => x.reduce((n, v, i) => n + (i && (v > 0) !== (x[i - 1] > 0)), 0) / x.length;
+  const db = (x) => 10 * Math.log10(x.reduce((n, v) => n + v * v, 0) / x.length + 1e-12);
+  const drop = zcr(slice(3.2, 3.7)) / zcr(slice(2.3, 2.8)), quiet = db(slice(3.9, 4.4)), back = db(slice(5.5, 6.8));
+  lines.push(`turntable: pitch ratio during brake ${drop.toFixed(2)}, stopped ${quiet.toFixed(1)} dB, after spin-up ${back.toFixed(1)} dB`);
+  if (!(drop < 0.85)) fails.push(`brake does not lower pitch (ratio ${drop.toFixed(2)})`);
+  if (!(quiet < -60)) fails.push(`not silent after brake (${quiet.toFixed(1)} dB)`);
+  if (!(back > -40)) fails.push(`no sound after spin-up (${back.toFixed(1)} dB)`);
+}
+const result = (fails.length ? `FAIL\n${fails.join('\n')}` : 'PASS') + '\n\n' + lines.join('\n');
+document.getElementById('out').textContent = result;
+window.result = result;
+</script>

@@ -1,0 +1,14 @@
+Use your built-in image_gen tool (not the CLI script) to generate ONE image, then copy the final PNG to art/raw/rain-day.png in this workspace. Do not write any code or other files.
+
+Use case: stylized-concept
+Asset type: full-screen animated background for a calm lofi music web app, rendered edge to edge on desktop and phones
+Primary request: an original pixel art scene of a quiet rooftop garden nook at the edge of a small hillside city, on a rainy day
+Scene/backdrop: foreground is a long weathered stone parapet ledge running across the lower third of the frame, with terracotta pots, ferns, ivy spilling over the edge, and a string of small unlit round bulbs draped between two thin wooden posts above the ledge. Middle ground: lush trees and a few low rooftops with a water tank and chimneys. Background: a hazy distant city skyline of small buildings with many tiny windows, a few windows softly lit warm amber, soft misty hills behind, overcast sky.
+Subject: the place itself, no people, no animals
+Style/medium: crisp handcrafted 16-bit pixel art, clean hard pixel edges, every art pixel is an exact square block on one consistent grid of about 4x4 output pixels, limited palette of about 32 colors, no anti-aliasing, no blur, no gradients, no noisy dithering
+Composition/framing: landscape, straight-on eye level view over the ledge. The exact horizontal center of the ledge top must be a flat, empty, clearly visible stone surface about one tenth of the image wide, free of pots and plants, because a small cat sprite will be composited there later. Keep the most interesting details inside the central third horizontally so the image still reads when cropped to a tall phone portrait. Sky occupies roughly the top quarter.
+Lighting/mood: soft diffuse overcast rain light, calm, cozy, a bit of warmth
+Color palette: muted teal, sage and deep greens, slate blue-grey, soft lavender stone, a few warm amber accents
+Materials/textures: wet stone with subtle sheen, a few small puddles on the ledge, glossy wet leaves
+Constraints: absolutely no falling rain streaks or raindrops in the air (rain is animated separately), no text, no logo, no watermark, no border, no frame
+Avoid: people, animals, cats, birds, lettering, photorealism, 3D render look, blurry or soft pixels
