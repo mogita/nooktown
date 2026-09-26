@@ -12,6 +12,7 @@ uniform vec4 uFxA, uFxB; // rain, glow, fireflies, cloud shadows
 uniform vec3 uTintA, uTintB;
 uniform vec4 uCatRect;
 uniform vec2 uLedge; // top row and depth of the ledge surface, for splashes
+uniform float uK; // art pixels per base-grid pixel, so effects keep their size at any art resolution
 out vec4 o;
 
 float h1(float x) { return fract(sin(x * 91.3458) * 47453.5453); }
@@ -32,12 +33,12 @@ vec3 look(sampler2D s, sampler2D g, vec2 p, vec4 fx) {
   vec2 uv = (p + .5) / uArt;
   float y = p.y / uArt.y;
   vec3 c = texture(s, uv).rgb;
-  vec3 mid = textureLod(s, uv, 2.5).rgb;
+  vec3 mid = textureLod(s, uv, 2.5 + log2(uK)).rgb;
   c += texture(g, uv).rgb * vec3(1., .85, .65) * 1.6 * fx.y * (.9 + .1 * sin(uT * 1.1 + p.x * .03));
   // Stars twinkle on the darkest skies only; warm points (moon, windows) hold steady.
   float star = smoothstep(.12, .3, dot(c - mid, vec3(.3, .59, .11))) * (1. - smoothstep(.2, .35, y)) * step(c.r, c.b + .02);
   c *= 1. + star * smoothstep(.8, 1., fx.y) * .5 * sin(uT * (1.5 + 2. * h2(p)) + h2(p + 3.) * 40.);
-  float n = fbm(p / vec2(70., 34.) + vec2(uT * .018, uT * .004));
+  float n = fbm(p / (vec2(70., 34.) * uK) + vec2(uT * .018, uT * .004));
   c *= 1. - step(.5, n + (bayer(p) - .5) * .05) * .14 * fx.w * smoothstep(.2, .38, y);
   return c;
 }
@@ -55,8 +56,8 @@ float fireflies(vec2 p) {
   for (int i = 0; i < 16; i++) {
     float k = float(i);
     vec2 at = vec2((.1 + .8 * h1(k)) * uArt.x, uArt.y * (.5 + .42 * h1(k + 3.)));
-    at += vec2(sin(uT * .21 + k * 1.7) * 16., sin(uT * .33 + k * 2.3) * 6.);
-    vec2 d = p - floor(at);
+    at += vec2(sin(uT * .21 + k * 1.7) * 16., sin(uT * .33 + k * 2.3) * 6.) * uK;
+    vec2 d = floor((p - floor(at)) / uK);
     float r2 = dot(d, d);
     f += pow(.5 + .5 * sin(uT * (.7 + .8 * h1(k + 9.)) + k * 4.), 2.) * (r2 < .5 ? 1. : r2 < 1.5 ? .35 : 0.);
   }
@@ -78,7 +79,7 @@ float splash(vec2 p) {
 void main() {
   vec2 p = vec2(floor(gl_FragCoord.x), uArt.y - 1. - floor(gl_FragCoord.y));
   // A narrow dithered band sweeps down from the sky.
-  float th = .22 * bayer(p) + .64 * (p.y / uArt.y) + .14 * h2(floor(p / 3.));
+  float th = .22 * bayer(p) + .64 * (p.y / uArt.y) + .14 * h2(floor(p / (3. * uK)));
   float m = smoothstep(th - .05, th + .05, uMix * 1.1 - .05);
   float e = smoothstep(0., 1., uMix);
   vec4 fx = mix(uFxA, uFxB, e);
@@ -89,7 +90,7 @@ void main() {
     c = mix(c, cat.rgb, cat.a);
   }
   c += vec3(1., .86, .45) * fireflies(p) * fx.z * .8;
-  float rn = .3 * rain(p, 260., 13., .07, 1.) + .18 * rain(p, 190., 9., .14, 2.) + .1 * rain(p, 140., 6., .22, 3.) + splash(p);
+  float rn = .3 * rain(p, 260. * uK, 13. * uK, .07 / uK, 1.) + .18 * rain(p, 190. * uK, 9. * uK, .14 / uK, 2.) + .1 * rain(p, 140. * uK, 6. * uK, .22 / uK, 3.) + splash(p);
   c = mix(c, mix(mix(uTintA, uTintB, e), vec3(1.), .4), clamp(rn * fx.x, 0., 1.));
   o = vec4(c, 1.);
 }`;
@@ -138,16 +139,30 @@ const CAT_W = 30, CAT_H = CAT.length + 1;
 
 const DUR = 2.4;
 
-// One horizontal or vertical box-blur pass (radius 2) over RGBA floats; alternating passes approximate a Gaussian.
-function blur(src, w, h, vertical) {
+// One horizontal or vertical box-blur pass over RGBA floats; alternating passes approximate a Gaussian.
+function blur(src, w, h, vertical, r) {
   const out = new Float32Array(src.length), step = vertical ? w * 4 : 4, n = vertical ? h : w;
   for (let i = 0; i < src.length; i += 4) {
     const at = vertical ? ((i / 4 / w) | 0) : (i / 4) % w;
-    for (let o = -2; o <= 2; o++) {
+    for (let o = -r; o <= r; o++) {
       if (at + o < 0 || at + o >= n) continue;
-      for (let j = 0; j < 3; j++) out[i + j] += src[i + j + o * step] / 5;
+      for (let j = 0; j < 3; j++) out[i + j] += src[i + j + o * step] / (2 * r + 1);
     }
   }
+  return out;
+}
+
+// Scale2x (EPX): doubles a pixel set while rounding its stair steps, so the cat matches finer art.
+function scale2x(on) {
+  const has = (x, y) => on.has(`${x},${y}`), out = new Set();
+  const pts = [...on].map((k) => k.split(',').map(Number));
+  const xs = pts.map(([x]) => x), ys = pts.map(([, y]) => y);
+  for (let y = Math.min(...ys) - 1; y <= Math.max(...ys) + 1; y++)
+    for (let x = Math.min(...xs) - 1; x <= Math.max(...xs) + 1; x++) {
+      const P = has(x, y), A = has(x, y - 1), B = has(x + 1, y), C = has(x - 1, y), D = has(x, y + 1);
+      const q = [C === A && C !== D && A !== B ? A : P, A === B && A !== C && B !== D ? B : P, D === C && D !== B && C !== A ? C : P, B === D && B !== A && D !== C ? D : P];
+      q.forEach((v, i) => v && out.add(`${2 * x + (i & 1)},${2 * y + (i >> 1)}`));
+    }
   return out;
 }
 const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
@@ -220,8 +235,7 @@ export function effects(weather, time) {
 export class Scene {
   constructor(canvas, { cat, ledge }) {
     this.canvas = canvas;
-    this.catAt = cat;
-    this.ledge = ledge;
+    this.base = { cat, ledge };
     const gl = (this.gl = canvas.getContext('webgl2', { antialias: false, alpha: false }));
     if (!gl) throw new Error('WebGL2 unavailable');
     const buf = gl.createBuffer();
@@ -230,7 +244,7 @@ export class Scene {
     this.compose = this.program(COMPOSE);
     this.present = this.program(PRESENT);
     this.scenes = {};
-    this.catCanvas = Object.assign(document.createElement('canvas'), { width: CAT_W, height: CAT_H });
+    this.catCanvas = document.createElement('canvas');
     this.cat2d = this.catCanvas.getContext('2d');
     this.catTex = this.texture();
     this.twitch = 0;
@@ -289,15 +303,19 @@ export class Scene {
       const k = Math.max(0, (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 255 - 0.55) / 0.45;
       for (let j = 0; j < 3; j++) g[i + j] = d[i + j] * k;
     }
-    for (let pass = 0; pass < 6; pass++) g = blur(g, w, h, pass % 2);
+    for (let pass = 0; pass < 6; pass++) g = blur(g, w, h, pass % 2, 2 * this.k);
     g.fill(0, (top + depth) * w * 4);
     const glow = this.texture(gl.LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, Uint8ClampedArray.from(g, (v, i) => (i % 4 === 3 ? 255 : v)));
     this.scenes[key] = { tex, glow, fx, tint, top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
   }
 
+  // Scene positions are given on the 249-wide base grid; finer art scales them by k.
   setSize(w, h) {
-    const gl = this.gl;
+    const gl = this.gl, k = (this.k = Math.max(1, Math.round(w / 249)));
+    this.catAt = this.base.cat.map((v) => v * k);
+    this.ledge = this.base.ledge.map((v) => v * k);
+    Object.assign(this.catCanvas, { width: CAT_W * k, height: CAT_H * k });
     this.art = [w, h];
     this.frameTex = this.texture(gl.LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -317,8 +335,9 @@ export class Scene {
   drawCat(t, tint) {
     const body = tint.map((v) => v * 0.14);
     if (t > this.twitch + 0.18 && Math.random() < 0.003) this.twitch = t;
-    this.cat2d.clearRect(0, 0, CAT_W, CAT_H);
-    paintCat(this.cat2d, catPixels(t, t - this.twitch < 0.18), css(body), css(lerp(body, tint, 0.4)));
+    this.cat2d.clearRect(0, 0, this.catCanvas.width, this.catCanvas.height);
+    const on = catPixels(t, t - this.twitch < 0.18);
+    paintCat(this.cat2d, this.k === 2 ? scale2x(on) : on, css(body), css(lerp(body, tint, 0.4)));
   }
 
   frame() {
@@ -350,8 +369,10 @@ export class Scene {
     gl.uniform1f(u.uT, t % 3600), gl.uniform1f(u.uMix, this.mix);
     gl.uniform4fv(u.uFxA, A.fx), gl.uniform4fv(u.uFxB, B.fx);
     gl.uniform3fv(u.uTintA, A.tint), gl.uniform3fv(u.uTintB, B.tint);
-    gl.uniform4f(u.uCatRect, this.catAt[0] - 8, this.catAt[1] - CAT_H, CAT_W, CAT_H);
+    const k = this.k;
+    gl.uniform4f(u.uCatRect, this.catAt[0] - 8 * k, this.catAt[1] - CAT_H * k, CAT_W * k, CAT_H * k);
     gl.uniform2fv(u.uLedge, this.ledge);
+    gl.uniform1f(u.uK, k);
     this.draw();
 
     const dpr = Math.min(devicePixelRatio || 1, 2), c = this.canvas;

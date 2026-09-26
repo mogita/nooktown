@@ -2,10 +2,14 @@
 
 Usage: python3 art/snap.py
 Detects the grid on art/raw/rain-day.png and applies it to every art/raw/*.png so all scenes stay aligned.
+Each detected cell is split into DETAIL x DETAIL art pixels, keeping the finer strokes the generator drew.
+Colours are the true per-cell medians: a reduced palette shifted sky hues and ringed the bulbs.
 """
 from pathlib import Path
 import numpy as np
 from PIL import Image
+
+DETAIL = 2
 
 
 def grid(edges):
@@ -19,7 +23,7 @@ def grid(edges):
     return best[1], best[2]
 
 
-def snap(src, dst, forced=None):
+def snap(src, dst, forced=None, detail=1):
     a = np.asarray(Image.open(src).convert('RGB'), np.float32)
     h, w, _ = a.shape
     if forced:
@@ -30,6 +34,8 @@ def snap(src, dst, forced=None):
         p = (px + py) / 2
         # Edge index k sits between pixels k and k+1, so the cell boundary is at k + 1.
         ox, oy = (ox + 1) % p, (oy + 1) % p
+        # Same origin, finer cells: art pixel coordinates stay an exact multiple of the coarse grid.
+        p /= detail
         cols, rows = int((w - ox) // p), int((h - oy) // p)
     cells = np.zeros((rows, cols, 3), np.uint8)
     r = max(1, int(p * 0.3))
@@ -38,13 +44,12 @@ def snap(src, dst, forced=None):
         for i in range(cols):
             cx = int(ox + (i + 0.5) * p)
             cells[j, i] = np.median(a[cy - r:cy + r + 1, cx - r:cx + r + 1].reshape(-1, 3), axis=0)
-    img = Image.fromarray(cells).quantize(colors=160, method=Image.Quantize.MAXCOVERAGE, dither=Image.Dither.NONE).convert('RGB')
-    img.save(dst)
+    Image.fromarray(cells).save(dst, optimize=True)
     print(f'{src}: period {p:.3f} offset ({ox:.2f}, {oy:.2f}) -> {cols}x{rows}')
     return p, ox, oy, cols, rows
 
 
-def dry_face(wet_path, dry_path, top=108):
+def dry_face(wet_path, dry_path, top):
     """Remove light reflections the generator painted on the ledge's front lip and vertical face (rows >= top).
 
     Puddles on the top surface may reflect the bulbs; a vertical stone face facing the viewer should not.
@@ -65,7 +70,7 @@ def dry_face(wet_path, dry_path, top=108):
     print(f'{wet_path}: dried {int(mask.sum())} front-face pixels')
 
 
-def cool_face(warm_path, cool_path, top=108):
+def cool_face(warm_path, cool_path, top):
     """Give the shaded front of the ledge the cool hue of another scene, keeping its own brightness.
 
     The face points away from the bulbs, so it should not glow amber. Ivy (green) is left alone.
@@ -82,20 +87,21 @@ def cool_face(warm_path, cool_path, top=108):
     print(f'{warm_path}: cooled {int(stone.sum())} face pixels')
 
 
-def wire_path(base_path, x0=58, x1=187):
+def wire_path(base_path, k=1):
     """Fit the bulb wire's sag as a parabola from its darkest pixels in the base scene."""
     a = np.asarray(Image.open(base_path).convert('RGB'), np.float32).mean(2)
+    x0, x1 = 58 * k, 187 * k
     xs, ys = [], []
     for x in range(x0, x1 + 1):
-        col = a[10:50, x]
+        col = a[10 * k:50 * k, x]
         dark = np.nonzero(col < np.median(col) - 45)[0]
         if len(dark):
-            xs.append(x), ys.append(dark[0] + 10)
+            xs.append(x), ys.append(dark[0] + 10 * k)
     xs, ys = np.array(xs), np.array(ys)
     keep = np.ones(len(xs), bool)
     for _ in range(3):
         fit = np.polyfit(xs[keep], ys[keep], 2)
-        keep = np.abs(np.polyval(fit, xs) - ys) <= 2
+        keep = np.abs(np.polyval(fit, xs) - ys) <= 2 * k
     return [(x, int(round(np.polyval(fit, x)))) for x in range(x0, x1 + 1)]
 
 
@@ -113,22 +119,22 @@ def mend_wire(path, wire):
     print(f'{path}: filled {len(gaps)} wire gaps')
 
 
-def repaint_moon(path, center=(211.5, 6.5), radius=4.7, offset=2.4, erase=(203, 2, 220, 17)):
+def repaint_moon(path, k=1):
     """Replace the generated crescent with a round, opaque moon: a lit crescent that fades across the terminator
     into a faint dark side, placed wholly inside the dark upper sky band."""
     a = np.asarray(Image.open(path).convert('RGB'), np.float32)
-    x0, y0, x1, y1 = erase
+    x0, y0, x1, y1 = (v * k for v in (203, 2, 220, 17))
+    cx, cy, radius, offset = 211.5 * k, 6.5 * k, 4.7 * k, 2.4 * k
     lum = a.mean(2)
     for y in range(y0, y1):
-        row = lum[y, x0 - 6:x1 + 6]
+        row = lum[y, x0 - 6 * k:x1 + 6 * k]
         sky = np.median(row)
         for x in range(x0, x1):
             if lum[y, x] > sky + 8:
-                near = [a[y, i] for i in range(x - 5, x + 6) if abs(lum[y, i] - sky) <= 8]
+                near = [a[y, i] for i in range(x - 5 * k, x + 5 * k + 1) if abs(lum[y, i] - sky) <= 8]
                 a[y, x] = np.median(near, axis=0) if near else a[y, x]
-    ramp = [(-0.8, '#28304d'), (0.0, '#5d6076'), (0.8, '#9c9596'), (1.6, '#d9cdb2'), (9e9, '#f4e9cc')]
+    ramp = [(-0.8 * k, '#28304d'), (0.0, '#5d6076'), (0.8 * k, '#9c9596'), (1.6 * k, '#d9cdb2'), (9e9, '#f4e9cc')]
     rgb = lambda h: np.array([int(h[i:i + 2], 16) for i in (1, 3, 5)], np.float32)
-    cx, cy = center
     for y in range(int(cy - radius) - 1, int(cy + radius) + 2):
         for x in range(int(cx - radius) - 1, int(cx + radius) + 2):
             d = np.hypot(x + 0.5 - cx, y + 0.5 - cy)
@@ -137,24 +143,25 @@ def repaint_moon(path, center=(211.5, 6.5), radius=4.7, offset=2.4, erase=(203, 
             # Distance outside the shadow disc (same size, shifted left) sets how lit a pixel is.
             e = np.hypot(x + 0.5 - cx + offset, y + 0.5 - cy) - radius
             color = next(c for limit, c in ramp if e <= limit)
-            if color == '#28304d' and d > radius - 1:
+            if color == '#28304d' and d > radius - k:
                 color = '#303957'
             a[y, x] = rgb(color)
     Image.fromarray(a.astype(np.uint8)).save(path)
-    print(f'{path}: repainted moon at {center} r {radius}')
+    print(f'{path}: repainted moon at ({cx}, {cy}) r {radius:.1f}')
 
 
 if __name__ == '__main__':
+    k = DETAIL
     root = Path(__file__).parent
     assets = root.parent / 'public/assets'
-    base = snap(root / 'raw/rain-day.png', assets / 'rain-day.png')
+    base = snap(root / 'raw/rain-day.png', assets / 'rain-day.png', detail=k)
     for src in sorted((root / 'raw').glob('*.png')):
         if src.stem != 'rain-day':
             snap(src, assets / src.name, base)
     for wet, dry in (('rain-evening', 'cloud-evening'), ('rain-night', 'cloud-night')):
-        dry_face(assets / f'{wet}.png', assets / f'{dry}.png')
-    cool_face(assets / 'rain-evening.png', assets / 'rain-night.png')
-    repaint_moon(assets / 'sun-night.png')
-    wire = wire_path(assets / 'rain-day.png')
+        dry_face(assets / f'{wet}.png', assets / f'{dry}.png', 108 * k)
+    cool_face(assets / 'rain-evening.png', assets / 'rain-night.png', 108 * k)
+    repaint_moon(assets / 'sun-night.png', k)
+    wire = wire_path(assets / 'rain-day.png', k)
     for png in sorted(assets.glob('*.png')):
         mend_wire(png, wire)
