@@ -9,7 +9,14 @@
   --bottom: max(18px, calc(env(safe-area-inset-bottom) + 8px));
   /* Keep -webkit-backdrop-filter before backdrop-filter: the build minifier drops the standard one when it comes first. */
   --blur: blur(24px) saturate(1.4);
+  --text: 1;
 }
+
+/* Some scripts read smaller than Latin at the same size, Urdu's Nastaliq most of all, so their text is set larger. */
+:root:lang(ur) { --text: 1.35; }
+:root:is(:lang(ar), :lang(fa)) { --text: 1.2; }
+:root:lang(th) { --text: 1.15; }
+:root:is(:lang(he), :lang(hi), :lang(bn)) { --text: 1.1; }
 
 html, body { height: 100%; margin: 0; overflow: hidden; }
 
@@ -136,7 +143,7 @@ svg {
   right: 0;
   margin: 0;
   text-align: center;
-  font-size: 11px;
+  font-size: calc(11px * var(--text));
   font-weight: 600;
   letter-spacing: 0.3em;
   text-transform: uppercase;
@@ -212,16 +219,29 @@ body:not(.started) .dock,
 .idle .mixer { opacity: 0; }
 
 .groups { display: flex; gap: 14px; }
-.about { margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--line); text-align: right; font-size: 10px; color: var(--dim); letter-spacing: 0.02em; }
+.about { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: calc(10px * var(--text)); color: var(--dim); letter-spacing: 0.02em; }
+.about p { margin: 0; text-align: right; }
 .about a { color: var(--fg); text-decoration: none; }
+/* The handle is Latin, so it keeps the Latin size in every language. */
+.about [data-slot="author"] { font-size: calc(1em / var(--text)); }
 .about a:hover, .about a:focus-visible { text-decoration: underline; outline: none; }
 
+/* The native picker lies invisibly over its label: its 16px text keeps iOS from zooming in when it opens. */
+.lang { position: relative; display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; transition: color 0.3s; }
+.lang::after { content: ""; width: 3px; height: 3px; border: solid currentColor; border-width: 0 1px 1px 0; rotate: 45deg; translate: 0 -1px; }
+.lang:hover, .lang:focus-within { color: var(--fg); }
+.lang:has(:focus-visible) { outline: 2px solid rgba(255, 255, 255, 0.6); outline-offset: 3px; border-radius: 4px; }
+.lang select { position: absolute; inset: 0; width: 100%; margin: 0; opacity: 0; font-size: 16px; color-scheme: dark; cursor: pointer; }
+
 .group { display: flex; flex-direction: column; }
+
+/* Letter spacing pulls apart scripts whose letters join, hang from a line or stack marks. */
+:is(:lang(ar), :lang(fa), :lang(ur), :lang(hi), :lang(bn), :lang(th)) :is(h2, .caption) { letter-spacing: 0; }
 .group + .group { padding-left: 14px; border-left: 1px solid var(--line); }
 
 h2 {
   margin: 0 0 14px;
-  font-size: 10px;
+  font-size: calc(10px * var(--text));
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -258,7 +278,7 @@ h2 {
 .track:focus-visible { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.6); }
 
 .label {
-  font-size: 11px;
+  font-size: calc(11px * var(--text));
   color: var(--dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -279,7 +299,7 @@ h2 {
   .faders { gap: 0; }
   .fader { width: 42px; }
   .track { width: 28px; height: clamp(84px, 12vh, 120px); }
-  .label { font-size: 10px; }
+  .label { font-size: calc(10px * var(--text)); }
   h2 { padding-left: 7px; }
 }
 

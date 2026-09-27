@@ -12,6 +12,7 @@ Try it at https://nooktown.mogita.rocks, or add it to your home screen to use it
 - Live Web Audio music: electric piano, bass and dusty drums with tape wobble. The chords change with the time of day and the place.
 - Ambience that follows the scene: rain, wind or breeze; birds, chimes or crickets; vinyl crackle. Indoors the window muffles the outside.
 - A turntable brake and spin-up when you pause and play.
+- In 38 languages, following your browser's until you pick one in the mixer.
 - Remembers your mix, and works offline once installed.
 
 ## Development
@@ -21,7 +22,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173. Run `npm run dev -- --host` to test on a phone on the same network. The audio check lives at http://localhost:5173/tests/audio.html and prints PASS or FAIL. Run `npm test` to check that the cat's tail never breaks apart.
+Open http://localhost:5173. Run `npm run dev -- --host` to test on a phone on the same network. The audio check lives at http://localhost:5173/tests/audio.html and prints PASS or FAIL. Run `npm test` to check that the cat's tail never breaks apart and that every language translates every text.
 
 ## Art
 
@@ -39,6 +40,7 @@ python3 art/snap.py
 - `src/audio.js`: Web Audio engine (FM electric piano, bass, drums, ambience, tape wow, turntable brake).
 - `src/scene.js`: WebGL2 renderer (scene transitions, rain and splashes, glow, fireflies, cloud shadows, the cat, the tab icon).
 - `src/main.js`: state, controls and persistence.
+- `src/i18n/`: the language list and browser matching, the translation lookup, and one JSON file per language in `locales/`, keyed like `locales/en.json`.
 - `public/`: scene art, link preview card, app icons, web manifest, service worker, robots.txt and sitemap.
 
 ## License

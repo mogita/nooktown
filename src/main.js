@@ -1,15 +1,15 @@
 import { Engine, DEFAULT_LEVELS, WEATHER_SOUNDS } from './audio.js';
 import { Scene, effects, favicon, shadowOf } from './scene.js';
+import { LANGUAGES, detect, lang, setLanguage, t } from './i18n/index.js';
 
 const PLACES = ['roof', 'room'];
 const WEATHERS = ['rain', 'cloud', 'sun', 'snow'];
 const TIMES = ['day', 'evening', 'night'];
-const PLACE_NAMES = { roof: 'On the rooftop', room: 'By the window' };
-const natureSound = () => (state.weather === 'snow' ? 'Chimes' : state.time === 'night' ? 'Crickets' : state.weather === 'rain' || state.time === 'evening' ? 'Chimes' : 'Birds');
+const natureSound = () => (state.weather === 'snow' ? 'chimes' : state.time === 'night' ? 'crickets' : state.weather === 'rain' || state.time === 'evening' ? 'chimes' : 'birds');
 const FADERS = [
-  ['music', 'keys', 'Keys'], ['music', 'bass', 'Bass'], ['music', 'drums', 'Drums'],
-  ['ambience', 'weather'], ['ambience', 'nature'], ['ambience', 'vinyl', 'Vinyl'],
-  ['master', 'master', 'Master'],
+  ['music', 'keys'], ['music', 'bass'], ['music', 'drums'],
+  ['ambience', 'weather'], ['ambience', 'nature'], ['ambience', 'vinyl'],
+  ['master', 'master'],
 ];
 // On the 249-wide base grid: where the cat sits, the ledge's top row and depth, and indoors the window glass. albedo is how light the ledge looks in plain daylight, so the white fur can be lit to match. On the sill the tail hangs over the edge.
 const SPOTS = { roof: { cat: [124, 105], ledge: [101, 7], albedo: 0.58 }, room: { cat: [127, 103], ledge: [100, 4], albedo: 0.78, window: [71, 14, 113, 80], hang: true } };
@@ -19,19 +19,22 @@ const $ = (s) => document.querySelector(s);
 const body = document.body, ui = $('#ui'), mixer = $('#mixer'), mixBtn = $('#mix'), caption = $('#caption'), canvas = $('#scene');
 
 const custom = {};
+// The listener's pick; until there is one, the language follows the browser's.
+let language;
 const state = { place: 'room', weather: 'rain', time: 'evening', levels: { ...DEFAULT_LEVELS } };
 try {
   const saved = JSON.parse(localStorage.getItem('nook:v3'));
   if (PLACES.includes(saved?.place)) state.place = saved.place;
   if (WEATHERS.includes(saved?.weather)) state.weather = saved.weather;
   if (TIMES.includes(saved?.time)) state.time = saved.time;
+  if (LANGUAGES.some(([code]) => code === saved?.lang)) language = saved.lang;
   for (const k in state.levels) if (Number.isFinite(saved?.levels?.[k])) custom[k] = state.levels[k] = Math.min(1, Math.max(0, saved.levels[k]));
 } catch {}
 // Only sliders the listener moved are stored, so untouched ones follow future default changes.
-const save = () => { try { localStorage.setItem('nook:v3', JSON.stringify({ place: state.place, weather: state.weather, time: state.time, levels: custom })); } catch {} };
+const save = () => { try { localStorage.setItem('nook:v3', JSON.stringify({ place: state.place, weather: state.weather, time: state.time, lang: language, levels: custom })); } catch {} };
 
 const sceneKey = ({ place, weather, time } = state) => `${place === 'room' ? 'room-' : ''}${weather}-${time}`;
-const sceneName = () => `${{ rain: 'Rainy', cloud: 'Cloudy', sun: state.time === 'day' ? 'Sunny' : 'Clear', snow: 'Snowy' }[state.weather]} ${state.time}`;
+const sceneName = () => t(`${state.weather}-${state.time}`);
 
 // Scene: the CSS background shows the art instantly and stays as a fallback if WebGL2 is unavailable.
 let scene;
@@ -93,7 +96,7 @@ function play() {
   }
   playing = true;
   body.classList.remove('paused');
-  $('#toggle').setAttribute('aria-label', 'Pause');
+  render();
   ctx.resume();
   if (first) engine.fadeTo(1, 1.5);
   else engine.start();
@@ -101,7 +104,7 @@ function play() {
 function pause() {
   playing = false;
   body.classList.add('paused');
-  $('#toggle').setAttribute('aria-label', 'Play');
+  render();
   const seconds = engine.stop();
   setTimeout(() => playing || (engine.settle(), ctx.suspend()), seconds * 1000 + 150);
 }
@@ -115,19 +118,19 @@ function flashCaption(text = sceneName()) {
 }
 
 // Controls
-const faders = FADERS.map(([group, name, label]) => {
+const faders = FADERS.map(([group, name]) => {
   const el = document.createElement('div');
   el.className = 'fader';
   el.innerHTML = '<div class="track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="0" aria-valuemax="100"></div><span class="label"></span>';
   const track = el.firstElementChild, text = el.lastElementChild;
   // The weather fader drives whichever weather sound is playing, so its value follows the scene.
   const key = () => (name === 'weather' ? WEATHER_SOUNDS[state.weather] : name);
-  const f = { label: () => label ?? (name === 'weather' ? key()[0].toUpperCase() + key().slice(1) : natureSound()) };
+  const f = {};
   f.render = () => {
-    const v = state.levels[key()], pct = Math.round(v * 100), l = f.label();
+    const v = state.levels[key()], pct = Math.round(v * 100), l = t(name === 'nature' ? natureSound() : key());
     track.style.setProperty('--v', v);
     track.setAttribute('aria-valuenow', pct);
-    track.setAttribute('aria-valuetext', `${pct}%`);
+    track.setAttribute('aria-valuetext', new Intl.NumberFormat(lang, { style: 'percent' }).format(pct / 100));
     track.setAttribute('aria-label', l);
     text.textContent = el.classList.contains('active') ? pct : l;
   };
@@ -176,14 +179,15 @@ function render() {
       b.tabIndex = on ? 0 : -1;
     }
   }
-  const sun = $('[data-value="sun"]'), sunName = state.time === 'day' ? 'Sunny' : 'Clear';
+  const sun = $('[data-value="sun"]'), sunName = t(state.time === 'day' ? 'sunny' : 'clear');
   sun.title = sunName;
   sun.setAttribute('aria-label', sunName);
   // The place button shows where it takes you, like play and pause.
-  const to = PLACE_NAMES[state.place === 'room' ? 'roof' : 'room'];
+  const to = t(state.place === 'room' ? 'roof' : 'room');
   body.classList.toggle('inside', state.place === 'room');
   $('#place').title = to;
   $('#place').setAttribute('aria-label', to);
+  $('#toggle').setAttribute('aria-label', t(playing ? 'pause' : 'play'));
   faders.forEach((f) => f.render());
 }
 
@@ -194,7 +198,7 @@ function choose(key, value) {
   render();
   showScene();
   engine?.setScene(state.weather, state.time, state.place);
-  flashCaption(key === 'place' ? PLACE_NAMES[value] : undefined);
+  flashCaption(key === 'place' ? t(value) : undefined);
 }
 
 for (const seg of segs) {
@@ -230,6 +234,21 @@ addEventListener('resize', place);
 mixBtn.addEventListener('click', () => setMixer(!mixerOpen()));
 $('#place').addEventListener('click', () => choose('place', state.place === 'room' ? 'roof' : 'room'));
 $('#toggle').addEventListener('click', toggle);
+
+const picker = $('#lang');
+picker.append(...LANGUAGES.map(([code, flag, name]) => Object.assign(new Option(`${flag} ${name}`, code), { lang: code })));
+async function pickLanguage(code) {
+  picker.value = code;
+  $('#lang-name').textContent = picker.selectedOptions[0].text;
+  if (!(await setLanguage(code))) return;
+  render();
+  place();
+}
+picker.addEventListener('change', () => {
+  language = picker.value;
+  save();
+  pickLanguage(language);
+});
 
 // The interface fades away when idle so the scene is all that remains.
 let idle, pointer = 'mouse';
@@ -267,6 +286,7 @@ $('#start').addEventListener('click', () => {
 
 render();
 place();
+pickLanguage(language ?? detect(navigator.languages ?? [navigator.language]));
 
 // Installed app: network first, cache only as an offline fallback. Skipped in dev so it never caches dev modules.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
