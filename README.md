@@ -43,6 +43,12 @@ python3 art/snap.py
 - `src/i18n/`: the language list and browser matching, the translation lookup, and one JSON file per language in `locales/`, keyed like `locales/en.json`.
 - `public/`: scene art, link preview card, app icons, web manifest, service worker, robots.txt and sitemap.
 
+## Support
+
+If Nooktown keeps you company, you can buy me a coffee.
+
+<a href="https://ko-fi.com/mogita"><img src="docs/support-me-on-kofi.png" alt="Support me on Ko-fi" width="220"></a>
+
 ## License
 
 MIT © [mogita](https://github.com/mogita)
