@@ -95,9 +95,14 @@ void main() {
   float e = smoothstep(0., 1., uMix);
   vec4 fx = mix(uFxA, uFxB, e);
   float vA, vB;
-  vec3 c = mix(look(uA, uGA, p, uFxA, uCatA, uPose.x, uWinA, vA), look(uB, uGB, p, uFxB, uCatB, uPose.y, uWinB, vB), m);
-  float vis = mix(vA, vB, m);
-  c += vec3(1., .86, .45) * fireflies(p) * fx.z * .8 * vis;
+  vec3 c = look(uB, uGB, p, uFxB, uCatB, uPose.y, uWinB, vB);
+  float vis = vB;
+  // Outside a transition only the new scene shows, and fireflies cost nothing where there are none.
+  if (uMix < 1.) {
+    c = mix(look(uA, uGA, p, uFxA, uCatA, uPose.x, uWinA, vA), c, m);
+    vis = mix(vA, vB, m);
+  }
+  if (fx.z > 0.) c += vec3(1., .86, .45) * fireflies(p) * fx.z * .8 * vis;
   float rn = .3 * rain(p, 260. * uK, 13. * uK, .07 / uK, 1.) + .18 * rain(p, 190. * uK, 9. * uK, .14 / uK, 2.) + .1 * rain(p, 140. * uK, 6. * uK, .22 / uK, 3.) + splash(p);
   c = mix(c, mix(mix(uTintA, uTintB, e), vec3(1.), .4), clamp(rn * fx.x * vis, 0., 1.));
   o = vec4(c, 1.);
