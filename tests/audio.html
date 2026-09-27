@@ -41,6 +41,13 @@ for (const place of ['roof', 'room']) for (const weather of ['rain', 'cloud', 's
   if (mix.peak >= 1) fails.push(`${name} mix clips (peak ${mix.peak.toFixed(2)})`);
   lines.push(row.join('  '));
 }
+// Snow hushes the arrangement: the same scene's music plays softer than in the rain.
+{
+  const music = { ...silent, master: 1, keys: 0.7, bass: 0.6, drums: 0.5 };
+  const hush = (await render('room', 'snow', 'evening', music)).rms - (await render('room', 'rain', 'evening', music)).rms;
+  lines.push(`snow: music ${hush.toFixed(1)} dB against rain`);
+  if (!(hush < -3)) fails.push(`snow does not hush the music (${hush.toFixed(1)} dB)`);
+}
 // Turntable: pitch falls during the brake, the stop is silent, and the spin-up brings sound back.
 {
   const ctx = new OfflineAudioContext(2, SR * 7, SR), q = 128 / SR, at = (t) => Math.round(t / q) * q;

@@ -81,7 +81,7 @@ export class Engine {
     const tape = (this.tape = new DelayNode(ctx, { maxDelayTime: 3, delayTime: TAPE }));
     this.lfo(0.45, 0.0016, tape.delayTime);
     this.lfo(5.3, 0.00006, tape.delayTime);
-    const warm = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 4200, Q: 0.4 });
+    const warm = (this.warm = new BiquadFilterNode(ctx, { type: 'lowpass', frequency: 4200, Q: 0.4 }));
     const sat = new WaveShaperNode(ctx, { curve: Float32Array.from({ length: 2048 }, (_, i) => Math.tanh(1.4 * (i / 1023.5 - 1)) / Math.tanh(1.4)), oversample: '2x' });
     tape.connect(warm).connect(sat).connect(comp);
 
@@ -210,6 +210,8 @@ export class Engine {
     this.weather = weather;
     this.mixWeather(tau);
     this.walls.frequency.setTargetAtTime(place === 'room' ? 3500 : OPEN, now, instant ? 0.01 : 0.6);
+    // Snow deadens sound, so the music darkens with it.
+    this.warm.frequency.setTargetAtTime(weather === 'snow' ? 2800 : 4200, now, tau);
     this.time = time;
     this.place = place;
     if (instant) this.song = SONGS[place][time];
@@ -263,11 +265,13 @@ export class Engine {
 
   step(t, i) {
     const s = i % 16, bar = Math.floor(i / 16), r = Math.random();
-    if (s === 0) this.song = SONGS[this.place][this.time];
+    // Songs and arrangements change on the bar line.
+    if (s === 0) (this.song = SONGS[this.place][this.time]), (this.hush = this.weather === 'snow');
     const [root, chord] = this.song.chords[bar % 4];
     const at = t + (s % 2 ? STEP * 0.28 : 0) + rand(-0.004, 0.004);
     // Two-bar intro, then a two-bar drum break at the end of every sixteen bars.
     const drums = bar >= 2 && bar % 16 < 14;
+    if (this.hush) return this.hushed(at, s, bar, r, root, chord, drums);
 
     if (s === 0) chord.forEach((m, k) => this.epiano(at + k * 0.014, m, rand(0.2, 0.26), BAR * 0.95));
     if (s === 10 && r < 0.35) chord.slice(1).forEach((m, k) => this.epiano(at + k * 0.012, m, 0.12, BEAT * 1.2));
@@ -286,12 +290,31 @@ export class Engine {
     if (s % 2 === 0) this.melody(at, s, bar);
   }
 
+  // Snow keeps the scene's chords and hushes the playing: chords struck softly and slowly rolled, one long bass note a bar, a soft kick and the odd brush, and a melody that moves by step and leaves room between notes.
+  hushed(at, s, bar, r, root, chord, drums) {
+    if (s === 0) {
+      chord.forEach((m, k) => this.epiano(at + k * 0.07, m, rand(0.12, 0.15), BAR));
+      this.bass(at, root, 0.45, BAR * 0.9);
+      this.phrase = Math.random() < (bar % 4 < 2 ? 0.6 : 0.1);
+    }
+    if (drums) {
+      if (s === 0 || (s === 10 && r < 0.25)) this.kick(at, s ? 0.25 : 0.4);
+      if (s === 8 && bar % 2) this.brush(at, rand(0.1, 0.14));
+      if (s === 4 || s === 12) this.hit(at, 0.05, 0.06, { type: 'bandpass', frequency: 4000, Q: 0.7 });
+    }
+    if (s % 4 === 0 && this.phrase && r < 0.35) this.lead(at, [-1, -1, 0, 1, 1], rand(0.08, 0.11), [4, 6, 8]);
+  }
+
   melody(t, s, bar) {
     if (s === 0) this.phrase = Math.random() < (bar % 4 < 2 ? 0.75 : 0.2);
-    if (!this.phrase || Math.random() > (s % 4 ? 0.22 : 0.42)) return;
+    if (this.phrase && Math.random() < (s % 4 ? 0.22 : 0.42)) this.lead(t, [-2, -1, -1, 0, 1, 1, 2], rand(0.1, 0.16), [2, 3, 4]);
+  }
+
+  // The melody wanders the scale by one of the given moves.
+  lead(t, moves, vel, steps) {
     const sc = this.song.scale;
-    this.mi = Math.min(9, Math.max(0, this.mi + pick([-2, -1, -1, 0, 1, 1, 2])));
-    this.epiano(t, sc[this.mi % 5] + 12 * Math.floor(this.mi / 5), rand(0.1, 0.16), STEP * pick([2, 3, 4]));
+    this.mi = Math.min(9, Math.max(0, this.mi + pick(moves)));
+    this.epiano(t, sc[this.mi % 5] + 12 * Math.floor(this.mi / 5), vel, STEP * pick(steps));
   }
 
   // Two-operator FM electric piano.
@@ -353,6 +376,16 @@ export class Engine {
     g.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
     o.connect(g).connect(this.drumsIn);
     o.start(t), o.stop(t + 0.12);
+  }
+
+  // A brush swept across the snare: noise that swells and fades instead of striking.
+  brush(t, v) {
+    const ctx = this.ctx, s = new AudioBufferSourceNode(ctx, { buffer: this.noise }), g = new GainNode(ctx, { gain: 0 });
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(v, t + 0.03);
+    g.gain.setTargetAtTime(0, t + 0.03, 0.06);
+    s.connect(new BiquadFilterNode(ctx, { type: 'bandpass', frequency: 2400, Q: 0.6 })).connect(g).connect(this.drumsIn);
+    s.start(t, rand(0, 3)), s.stop(t + 0.5);
   }
 
   hat(t, v, open) {
