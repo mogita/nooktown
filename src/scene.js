@@ -131,7 +131,8 @@ const CHEST = [[6.4, 9.6], [10.6, 9.6], [11.6, 11.4], [12.1, 17], [4.9, 17], [5.
 const EAR = [[2.6, 0.3], [3.6, 5.6], [7.4, 2.8]];
 const GROUND = 22, CAT_W = 30, CAT_H = 38, PAD = 12; // PAD: room left of the cat for its shadow
 
-const DUR = 2.4;
+// Scene transitions last DUR seconds, or RUSH when hurrying to make way for the next pick.
+const DUR = 2.4, RUSH = 0.3;
 
 const image = async (src) => {
   const img = new Image();
@@ -140,7 +141,8 @@ const image = async (src) => {
   return img;
 };
 
-const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
+// Eases out, so a switch starts moving at once.
+const ease = (x) => 1 - (1 - x) ** 3;
 const lerp = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
 
 const css = (c) => `rgb(${c.map((v) => Math.min(255, v * 255) | 0)})`;
@@ -371,12 +373,21 @@ export class Scene {
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.frameTex, 0);
   }
 
+  // A scene picked mid-transition waits while the current transition hurries on from where it is; picks in between are dropped.
   set(key, instant) {
-    if (key === this.to) return;
-    if (instant || !this.to) this.from = key;
-    else if (this.mix >= 0.5) this.from = this.to;
-    this.to = key;
-    this.start = instant ? -Infinity : performance.now() / 1000;
+    const t = performance.now() / 1000;
+    if (instant || !this.to) return Object.assign(this, { from: key, to: key, next: null, start: -Infinity, dur: DUR });
+    const p = this.progress(t);
+    if (p < 1) {
+      this.next = key === this.to ? null : key;
+      if (this.next) (this.start = t - p * RUSH), (this.dur = RUSH);
+    } else if (key !== this.to) Object.assign(this, { from: this.to, to: key, start: t, dur: DUR });
+  }
+
+  // Progress (0 to 1) of the transition at time t; the waiting scene takes over once it is done.
+  progress(t) {
+    if (this.next && t >= this.start + this.dur) Object.assign(this, { from: this.to, to: this.next, next: null, start: t, dur: DUR });
+    return Math.min(1, (t - this.start) / this.dur);
   }
 
   // Returns false, skipping the redraw and the texture upload, while nothing in the sprite has changed.
@@ -395,10 +406,10 @@ export class Scene {
   }
 
   frame() {
+    const t = performance.now() / 1000;
+    this.mix = ease(this.progress(t));
     const gl = this.gl, A = this.scenes[this.from], B = this.scenes[this.to];
     if (!A || !B) return;
-    const t = performance.now() / 1000;
-    this.mix = ease(Math.min(1, (t - this.start) / DUR));
     const [w, h] = this.art, e = this.mix * this.mix * (3 - 2 * this.mix);
 
     gl.activeTexture(gl.TEXTURE2);

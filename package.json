@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node tests/cat.mjs"
+    "test": "node tests/cat.mjs && node tests/transition.mjs"
   },
   "devDependencies": {
     "vite": "^8.3.1"
