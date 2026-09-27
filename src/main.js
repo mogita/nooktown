@@ -2,10 +2,10 @@ import { Engine, DEFAULT_LEVELS, WEATHER_SOUNDS } from './audio.js';
 import { Scene, effects, favicon, shadowOf } from './scene.js';
 
 const PLACES = ['roof', 'room'];
-const WEATHERS = ['rain', 'cloud', 'sun'];
+const WEATHERS = ['rain', 'cloud', 'sun', 'snow'];
 const TIMES = ['day', 'evening', 'night'];
 const PLACE_NAMES = { roof: 'On the rooftop', room: 'By the window' };
-const natureSound = () => (state.time === 'night' ? 'Crickets' : state.weather === 'rain' || state.time === 'evening' ? 'Chimes' : 'Birds');
+const natureSound = () => (state.weather === 'snow' ? 'Chimes' : state.time === 'night' ? 'Crickets' : state.weather === 'rain' || state.time === 'evening' ? 'Chimes' : 'Birds');
 const FADERS = [
   ['music', 'keys', 'Keys'], ['music', 'bass', 'Bass'], ['music', 'drums', 'Drums'],
   ['ambience', 'weather'], ['ambience', 'nature'], ['ambience', 'vinyl', 'Vinyl'],
@@ -31,7 +31,7 @@ try {
 const save = () => { try { localStorage.setItem('nook:v3', JSON.stringify({ place: state.place, weather: state.weather, time: state.time, levels: custom })); } catch {} };
 
 const sceneKey = ({ place, weather, time } = state) => `${place === 'room' ? 'room-' : ''}${weather}-${time}`;
-const sceneName = () => `${{ rain: 'Rainy', cloud: 'Cloudy', sun: state.time === 'day' ? 'Sunny' : 'Clear' }[state.weather]} ${state.time}`;
+const sceneName = () => `${{ rain: 'Rainy', cloud: 'Cloudy', sun: state.time === 'day' ? 'Sunny' : 'Clear', snow: 'Snowy' }[state.weather]} ${state.time}`;
 
 // Scene: the CSS background shows the art instantly and stays as a fallback if WebGL2 is unavailable.
 let scene;
@@ -55,7 +55,9 @@ try {
   // The current scene loads first, then the rest, with this place's scenes queued ahead of the other's.
   for (const s of [state, ...all.sort((a, b) => (b.place === state.place) - (a.place === state.place))]) {
     const key = sceneKey(s);
-    loads[key] ??= (loads[first] ?? Promise.resolve()).then(() => scene.load(key, `assets/${key}.png`, effects(s.weather, s.time), SPOTS[s.place], shadowOf(s.place, s.weather, s.time)));
+    // Snow on the rooftop ledge is lighter than its stone.
+    const spot = s.place === 'roof' && s.weather === 'snow' ? { ...SPOTS.roof, albedo: 0.88 } : SPOTS[s.place];
+    loads[key] ??= (loads[first] ?? Promise.resolve()).then(() => scene.load(key, `assets/${key}.png`, effects(s.weather, s.time), spot, shadowOf(s.place, s.weather, s.time)));
   }
   loads[first].then(() => {
     showScene(true);

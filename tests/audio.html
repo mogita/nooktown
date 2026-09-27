@@ -29,7 +29,7 @@ async function render(place, weather, time, levels) {
 }
 
 const lines = [], fails = [];
-for (const place of ['roof', 'room']) for (const weather of ['rain', 'cloud', 'sun']) for (const time of ['day', 'evening', 'night']) {
+for (const place of ['roof', 'room']) for (const weather of ['rain', 'cloud', 'sun', 'snow']) for (const time of ['day', 'evening', 'night']) {
   const name = `${place}-${weather}-${time}`, row = [name.padEnd(19)];
   for (const ch of CHANNELS) {
     const { rms } = await render(place, weather, time, { ...silent, master: 1, ...solo(ch) });

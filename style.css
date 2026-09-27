@@ -176,7 +176,7 @@ body:not(.started) .dock,
 .paused #toggle .i-play { display: block; }
 #place .i-out, .inside #place .i-in { display: none; }
 .inside #place .i-out { display: block; }
-#place .dots { stroke-width: 2.5; }
+.dots { stroke-width: 2.5; }
 #mix[aria-expanded="true"] { color: var(--fg); background: var(--glass-hi); }
 
 .seg { position: relative; display: flex; }
@@ -267,8 +267,8 @@ h2 {
 .active .label { color: var(--fg); }
 
 @media (max-width: 480px) {
-  /* Nine buttons must fit the narrowest phones with a gutter to spare. */
-  :root { --btn: min(38px, calc((100vw - 56px) / 9)); }
+  /* Ten buttons must fit the narrowest phones with a gutter to spare. */
+  :root { --btn: min(38px, calc((100vw - 56px) / 10)); }
   .dock { gap: 0; }
   .sep { margin: 0 2px; }
   .mixer { left: 12px; right: 12px; translate: 0 12px; padding: 12px 10px; }

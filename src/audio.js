@@ -38,8 +38,8 @@ const SONGS = {
 };
 
 export const CHANNELS = ['keys', 'bass', 'drums', 'weather', 'nature', 'vinyl'];
-// Each weather sound keeps its own level; the weather channel plays whichever matches the scene.
-export const WEATHER_SOUNDS = { rain: 'rain', cloud: 'wind', sun: 'breeze' };
+// Each weather sound keeps its own level; the weather channel plays whichever matches the scene. Snow falls quietly, so only the wind carries.
+export const WEATHER_SOUNDS = { rain: 'rain', cloud: 'wind', sun: 'breeze', snow: 'wind' };
 export const DEFAULT_LEVELS = { keys: 0.7, bass: 0.6, drums: 0.5, rain: 0.4, wind: 0.55, breeze: 0.3, nature: 0.35, vinyl: 0.35, master: 0.7 };
 // Per-channel trim so equal slider positions sound roughly equally loud.
 const TRIM = { keys: 0.8, bass: 0.1, drums: 0.85, weather: 0.36, nature: 2.5, vinyl: 0.9 };
@@ -168,7 +168,7 @@ export class Engine {
   // One weather's sound, carrying the sources that feed it so they can be stopped once it has faded out.
   weatherSound(weather) {
     this.sources = [];
-    const out = weather === 'rain' ? this.rain() : weather === 'cloud' ? this.wind(420, 0.8, 0.9) : this.wind(2400, 0.5, 0.28);
+    const out = weather === 'rain' ? this.rain() : weather === 'sun' ? this.wind(2400, 0.5, 0.28) : this.wind(420, 0.8, 0.9);
     out.sources = this.sources;
     this.sources = null;
     out.connect(this.ch.weather);
@@ -359,11 +359,11 @@ export class Engine {
     this.hit(t, v, open ? 0.3 : 0.045, { type: 'highpass', frequency: 7000 });
   }
 
-  // Birds stay quiet in the rain; wind chimes take their place. Crickets thin out when it rains.
+  // Birds stay quiet in the rain; wind chimes take their place. Crickets thin out when it rains, and in the snow only the chimes are left.
   nature(t) {
-    const wet = this.weather === 'rain';
-    if (this.time === 'night') this.cricket(t), (this.nextNature = t + (wet ? rand(1.8, 4.5) : rand(0.8, 2.2)));
-    else if (wet) this.chime(t), (this.nextNature = t + rand(3, 8));
+    const wet = this.weather === 'rain', snow = this.weather === 'snow';
+    if (this.time === 'night' && !snow) this.cricket(t), (this.nextNature = t + (wet ? rand(1.8, 4.5) : rand(0.8, 2.2)));
+    else if (wet || snow) this.chime(t), (this.nextNature = t + rand(3, 8));
     else if (this.time === 'day') this.bird(t), (this.nextNature = t + rand(1.2, 4.5));
     else (Math.random() < 0.7 ? this.chime(t) : this.bird(t)), (this.nextNature = t + rand(2, 6));
   }

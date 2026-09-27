@@ -197,14 +197,17 @@ def repaint_moon(path, k=1, lit=0.36, tilt=40):
     print(f'{path}: repainted waxing crescent at ({cx}, {cy}) r {radius:.1f}, {lit:.0%} lit, tilted {tilt} deg')
 
 
-def glow_map(src, dst, top, depth, k=1):
+def glow_map(src, dst, top, depth, k=1, warm=False):
     """Keep only light sources brighter than the scenery and blur them into the soft halo the shader adds on top.
 
     Only rows above the ledge top count as sources, so puddle reflections on it do not glow, and nothing glows on its lip or face below top + depth.
+    With warm set, only amber pixels count, not the snow, which the dusk tints pink and is as bright as the lamps.
     Six alternating box blurs approximate a Gaussian; pixels past the image edges count as black.
     """
     a = np.asarray(Image.open(src).convert('RGB'), np.float64)
     g = a * (np.maximum(0, (a @ [0.3, 0.59, 0.11]) / 255 - 0.55) / 0.45)[..., None]
+    if warm:
+        g[a[..., 0] <= a[..., 2] + 80] = 0
     g[top:] = 0
     r = 2 * k
     for p in range(6):
@@ -244,7 +247,7 @@ if __name__ == '__main__':
         if png.stem.endswith('-day'):
             continue
         top, depth = (100, 4) if png.stem.startswith('room-') else (101, 7)
-        glow_map(png, assets / 'glow' / png.name, top * k, depth * k, k)
+        glow_map(png, assets / 'glow' / png.name, top * k, depth * k, k, warm='snow' in png.stem)
     # Link preview card, enlarged without smoothing so the pixels stay crisp when sites scale it down.
     card = Image.open(assets / 'sun-night.png')
     card.resize((card.width * 3, card.height * 3), Image.NEAREST).save(assets.parent / 'og.png', optimize=True)

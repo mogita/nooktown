@@ -8,7 +8,7 @@ Try it at https://nooktown.mogita.rocks, or add it to your home screen to use it
 
 ## Features
 
-- Two places, a rooftop and a room by the window, each with nine pixel art scenes: rainy, cloudy or sunny, by day, evening or night, with dithered transitions, rain, glowing lights and fireflies.
+- Two places, a rooftop and a room by the window, each with twelve pixel art scenes: rainy, cloudy, sunny or snowy, by day, evening or night, with dithered transitions, rain, glowing lights and fireflies.
 - Live Web Audio music: electric piano, bass and dusty drums with tape wobble. The chords change with the time of day and the place.
 - Ambience that follows the scene: rain, wind or breeze; birds, chimes or crickets; vinyl crackle. Indoors the window muffles the outside.
 - A turntable brake and spin-up when you pause and play.

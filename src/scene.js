@@ -265,7 +265,7 @@ export function favicon(time, rounded = true) {
 // Which way the main light throws shadows on screen ([dx, dy], dy toward the viewer) and how strongly, read off each scene's art: the sun from the upper left, the low sun through the window, and the table lamp right of the sill. Overcast and night rooftops only get the contact shadow.
 export function shadowOf(place, weather, time) {
   if (place === 'room') {
-    if (time === 'day') return { rain: [-1, 0.2, 0.45], cloud: [0, 1, 0.3], sun: [1, 0.2, 0.8] }[weather];
+    if (time === 'day') return { rain: [-1, 0.2, 0.45], cloud: [0, 1, 0.3], sun: [1, 0.2, 0.8], snow: [0, 1, 0.3] }[weather];
     return time === 'evening' && weather === 'sun' ? [-0.5, 1, 0.8] : [-1, 0.1, time === 'night' ? 1 : 0.75];
   }
   return weather === 'sun' ? (time === 'day' ? [1, -0.6, 0.9] : time === 'evening' ? [0, 1, 0.5] : [0, 0, 0]) : [0, 0, 0];
@@ -273,9 +273,10 @@ export function shadowOf(place, weather, time) {
 
 export function effects(weather, time) {
   const rain = weather === 'rain' ? 1 : 0;
-  const glow = { day: 0, evening: 0.55, night: 1 }[time];
-  const flies = rain ? 0 : { day: 0, evening: 0.45, night: 1 }[time];
-  const shadow = time === 'day' ? { sun: 1, cloud: 0.45, rain: 0 }[weather] : time === 'evening' && weather === 'sun' ? 0.5 : 0;
+  // Stars twinkle only above a glow of 0.8 (see look()), which snowy nights stay at so their snow does not sparkle with them.
+  const glow = { day: 0, evening: 0.55, night: weather === 'snow' ? 0.8 : 1 }[time];
+  const flies = rain || weather === 'snow' ? 0 : { day: 0, evening: 0.45, night: 1 }[time];
+  const shadow = time === 'day' ? { sun: 1, cloud: 0.45, rain: 0, snow: 0 }[weather] : time === 'evening' && weather === 'sun' ? 0.5 : 0;
   return [rain, glow, flies, shadow];
 }
 
