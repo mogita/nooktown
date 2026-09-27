@@ -61,8 +61,15 @@ try {
   loads[first].then(() => {
     showScene(true);
     canvas.classList.add('ready');
-    const loop = () => (scene.frame(), requestAnimationFrame(loop));
-    loop();
+    // At most 30 fps, plenty for pixel art that moves a pixel at a time; the slack keeps 60 and 120 Hz displays at an even 30.
+    let last = -Infinity;
+    const loop = (now) => {
+      requestAnimationFrame(loop);
+      if (now - last < 1000 / 30 - 5) return;
+      last = now;
+      scene.frame();
+    };
+    requestAnimationFrame(loop);
   });
 } catch (e) {
   console.warn(e);
