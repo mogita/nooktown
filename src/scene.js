@@ -169,6 +169,7 @@ function tail(pose, hang) {
 
 // Cat pixels at scale k, drawn from shapes so edges stay smooth at any scale. The tail moves between a few held poses: continuous motion makes edge pixels flicker on and off as the curve crosses the grid.
 // Returns a map from "x,y" to the part there: tip (the point of an ear), ear (just below it) or fur.
+export const tailPose = (t) => Math.round(2 + 2 * Math.sin(t * 0.9)) / 4;
 export function catPixels(t, twitch, k = 1, hang = false) {
   const on = new Map(), right = EAR.map(([x, y]) => [17 - x, y]);
   // A twitch flicks the right ear tip outward.
@@ -181,7 +182,7 @@ export function catPixels(t, twitch, k = 1, hang = false) {
       else if (inPolygon(x, y, EAR) || inPolygon(x, y, right)) on.set(`${px},${py}`, y < 1.6 ? 'tip' : y < 3.4 ? 'ear' : 'fur');
       else if (inEllipse(x, y, HAUNCHES) || polygons.some((g) => inPolygon(x, y, g))) on.set(`${px},${py}`, 'fur');
     }
-  const line = tail(Math.round(2 + 2 * Math.sin(t * 0.9)) / 4, hang);
+  const line = tail(tailPose(t), hang);
   const xs = line.map((p) => p[0]), ys = line.map((p) => p[1]);
   for (let py = Math.floor((Math.min(...ys) - 2) * k); py < (Math.max(...ys) + 2) * k; py++)
     for (let px = Math.floor((Math.min(...xs) - 2) * k); px < (Math.max(...xs) + 2) * k; px++)
@@ -388,14 +389,19 @@ export class Scene {
     this.start = instant ? -Infinity : performance.now() / 1000;
   }
 
+  // Returns false, skipping the redraw and the texture upload, while nothing in the sprite has changed.
   drawCat(t, fur, litFur, side, sky, shadow, surfaces) {
     const pal = catPalette(fur, litFur, sky), k = this.k === 2 ? 2 : 1;
     if (t > this.twitch + 0.18 && Math.random() < 0.003) this.twitch = t;
+    const twitch = t - this.twitch < 0.18, key = JSON.stringify([tailPose(t), twitch, pal, side, shadow, surfaces]);
+    if (key === this.catKey) return false;
+    this.catKey = key;
     this.cat2d.clearRect(0, 0, this.catCanvas.width, this.catCanvas.height);
     for (const hang of [false, true]) {
       if (surfaces[+hang]) paintShadow(this.cat2d, shadow, PAD * k, hang * CAT_H * k, k, surfaces[+hang]);
-      paintCat(this.cat2d, catPixels(t, t - this.twitch < 0.18, k, hang), pal, PAD * k, hang * CAT_H * k, side);
+      paintCat(this.cat2d, catPixels(t, twitch, k, hang), pal, PAD * k, hang * CAT_H * k, side);
     }
+    return true;
   }
 
   frame() {
@@ -405,10 +411,10 @@ export class Scene {
     this.mix = ease(Math.min(1, (t - this.start) / DUR));
     const [w, h] = this.art, e = this.mix * this.mix * (3 - 2 * this.mix);
 
-    this.drawCat(t, lerp(A.fur, B.fur, e), lerp(A.litFur, B.litFur, e), (e < 0.5 ? A : B).side, lerp(A.tint, B.tint, e), lerp(A.shadow, B.shadow, e), { [A.pose]: A.surface, [B.pose]: B.surface });
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, this.catTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.catCanvas);
+    if (this.drawCat(t, lerp(A.fur, B.fur, e), lerp(A.litFur, B.litFur, e), (e < 0.5 ? A : B).side, lerp(A.tint, B.tint, e), lerp(A.shadow, B.shadow, e), { [A.pose]: A.surface, [B.pose]: B.surface }))
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.catCanvas);
 
     let { p, u } = this.compose;
     gl.useProgram(p);
