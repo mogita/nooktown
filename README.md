@@ -1,6 +1,6 @@
 # Nooktown
 
-<img src="public/assets/sun-night.png" alt="Nooktown on a clear night" width="100%">
+<img src="docs/cover.png" alt="Nooktown, the room by the window at night" width="100%">
 
 A calm lofi vibe mixer with lofi beats, rain sounds and white noise to study, sleep and unwind. A black cat sits on a rooftop ledge above a quiet hillside town, or on the sill of a big window looking out at a tree, while the music, rain and vinyl crackle are synthesized live in your browser. Pick the place, the weather and the time of day, then mix it your way.
 
