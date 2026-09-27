@@ -43,6 +43,7 @@
   "vinyl": "Vinyl",
   "master": "Master",
   "language": "Language",
+  "coffee": "Buy me a coffee",
   "made": "Made in {flag} by {author}",
   "netherlands": "the Netherlands"
 }

@@ -43,6 +43,7 @@
   "vinyl": "Vinyyli",
   "master": "Yleinen",
   "language": "Kieli",
+  "coffee": "Tarjoa minulle kahvit",
   "made": "Tehty {flag}, tekijä {author}",
   "netherlands": "Alankomaissa"
 }

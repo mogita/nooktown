@@ -43,6 +43,7 @@
   "vinyl": "Vinyl",
   "master": "Celkový",
   "language": "Jazyk",
+  "coffee": "Kúpte mi kávu",
   "made": "Vyrobené v {flag} od {author}",
   "netherlands": "Holandsku"
 }

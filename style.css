@@ -207,7 +207,7 @@ body:not(.started) .dock,
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 12px 18px 14px;
+  padding: 9px 18px 14px;
   border-radius: 24px;
   opacity: 0;
   translate: -50% 12px;
@@ -219,12 +219,17 @@ body:not(.started) .dock,
 .idle .mixer { opacity: 0; }
 
 .groups { display: flex; gap: 14px; }
-.about { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: calc(10px * var(--text)); color: var(--dim); letter-spacing: 0.02em; }
+.about { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 11px; border-bottom: 1px solid var(--line); font-size: calc(10px * var(--text)); color: var(--dim); letter-spacing: 0.02em; }
 .about p { margin: 0; text-align: right; }
 .about a { color: var(--fg); text-decoration: none; }
 /* The handle is Latin, so it keeps the Latin size in every language. */
 .about [data-slot="author"] { font-size: calc(1em / var(--text)); }
 .about a:hover, .about a:focus-visible { text-decoration: underline; outline: none; }
+.about .tip { display: flex; align-items: center; gap: 5px; white-space: nowrap; color: inherit; transition: color 0.3s; }
+.about .tip:hover, .about .tip:focus-visible { color: var(--fg); text-decoration: none; }
+.about .tip:focus-visible { outline: 2px solid rgba(255, 255, 255, 0.6); outline-offset: 3px; border-radius: 4px; }
+/* Down a pixel to sit level with the letters, which ride low in their line. */
+.tip svg { width: 14px; height: 14px; stroke-width: 1.8; translate: 0 1px; }
 
 /* The native picker lies invisibly over its label: its 16px text keeps iOS from zooming in when it opens. */
 .lang { position: relative; display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; transition: color 0.3s; }
@@ -291,9 +296,12 @@ h2 {
   :root { --btn: min(38px, calc((100vw - 56px) / 10)); }
   .dock { gap: 0; }
   .sep { margin: 0 2px; }
-  .mixer { left: 12px; right: 12px; translate: 0 12px; padding: 12px 10px; }
+  .mixer { left: 12px; right: 12px; translate: 0 12px; padding: 8px 10px 12px; }
   .groups { justify-content: space-between; gap: 0; }
   .about { padding-right: 4px; }
+  /* No room for the words in most languages, so phones show the cup alone. */
+  .tip span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .tip svg { width: 16px; height: 16px; }
   .mixer.open { translate: 0 0; }
   .group + .group { padding-left: 8px; margin-left: 8px; }
   .faders { gap: 0; }

@@ -43,6 +43,7 @@
   "vinyl": "Винил",
   "master": "Общо",
   "language": "Език",
+  "coffee": "Черпи ме с кафе",
   "made": "Направено от {author} в {flag}",
   "netherlands": "Нидерландия"
 }

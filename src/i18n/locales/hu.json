@@ -43,6 +43,7 @@
   "vinyl": "Bakelit",
   "master": "Fő",
   "language": "Nyelv",
+  "coffee": "Hívj meg egy kávéra",
   "made": "Készült {flag}, alkotó: {author}",
   "netherlands": "Hollandiában"
 }
