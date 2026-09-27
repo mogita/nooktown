@@ -88,6 +88,34 @@ def cool_face(warm_path, cool_path, top):
     print(f'{warm_path}: cooled {int(stone.sum())} face pixels')
 
 
+def no_sun(sun_path, shade_path, regions):
+    """Take direct sunlight off surfaces it cannot reach: the wall around a window faces into the room, and light through the glass travels away from it.
+
+    Each region (a boolean mask) is replaced by the overcast scene tinted to the sunny scene's average colour there, so it keeps the warm light but loses the beams and leaf shadows.
+    """
+    sun = np.asarray(Image.open(sun_path).convert('RGB'), np.float32)
+    shade = np.asarray(Image.open(shade_path).convert('RGB'), np.float32)
+    for m in regions:
+        sun[m] = np.clip(shade[m] * sun[m].mean(0) / np.maximum(shade[m].mean(0), 1), 0, 255)
+    Image.fromarray(sun.astype(np.uint8)).save(sun_path)
+    print(f'{sun_path}: took sunlight off {sum(int(m.sum()) for m in regions)} pixels')
+
+
+def room_surfaces(shade_path):
+    """Split the room along its real edges into the window recess, the sill top and the potted plant on it, which sunlight through the glass reaches, and everything else, which faces into the room.
+
+    The recess stops at the lit side of the right jamb; its outer strip, the left jamb and the curtain face the room.
+    The sill top runs out under that strip to a slanted edge, told apart by its brighter paint.
+    """
+    c = np.asarray(Image.open(shade_path).convert('RGB'), np.int16)
+    y, x = np.mgrid[:c.shape[0], :c.shape[1]]
+    r, g, b = c[..., 0], c[..., 1], c[..., 2]
+    plant = (x >= 105) & (x < 190) & (y >= 145) & ((g > b + 12) | (r > b + 40) | (c.sum(2) < 210))
+    sill = (y >= 198) & (y <= 206) & (x >= 115) & (x <= 412) & ((x < 393) | (c.mean(2) > 145)) & ~plant
+    recess = (x >= 137) & (x < 393) & (y >= 2) & (y <= 206)
+    return ~(recess | sill | plant), sill
+
+
 def wire_path(base_path, k=1):
     """Fit the bulb wire's sag as a parabola from its darkest pixels in the base scene."""
     a = np.asarray(Image.open(base_path).convert('RGB'), np.float32).mean(2)
@@ -183,6 +211,10 @@ if __name__ == '__main__':
         dry_face(assets / f'{wet}.png', assets / f'{dry}.png', 108 * k)
     cool_face(assets / 'rain-evening.png', assets / 'rain-night.png', 108 * k)
     repaint_moon(assets / 'sun-night.png', k)
+    wall, sill = room_surfaces(assets / 'room-cloud-day.png')
+    no_sun(assets / 'room-sun-day.png', assets / 'room-cloud-day.png', [wall])
+    # At sunset the sill also loses the railing's stripes, which read as noise.
+    no_sun(assets / 'room-sun-evening.png', assets / 'room-cloud-evening.png', [wall, sill])
     wire = wire_path(assets / 'rain-day.png', k)
     for png in sorted(assets.glob('*.png')):
         if not png.stem.startswith('room-'):

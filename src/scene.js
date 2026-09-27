@@ -204,9 +204,10 @@ function paintCat(g, on, pal, ox = 0, oy = 0, side = 0) {
 }
 
 // A flat two-tone shadow on the ledge, in a dusky violet rather than black: a thin contact shadow hugging the cat's base, and a cast shadow stretched away from the main light ([dx, dy, strength], see shadowOf), darker near the cat and paler further out.
-function paintShadow(g, [dx, dy, s], ox, oy, k) {
+function paintShadow(g, [dx, dy, s], ox, oy, k, [top, bottom]) {
   const len = 10 * s, cx = 8.5 + (dx * len) / 2, cy = GROUND - 0.5 + 0.6 * s * dy, rx = 4.8 + (len / 2) * Math.abs(dx), ry = 1.3 + 0.6 * s * Math.abs(dy);
-  for (let py = (GROUND - 3) * k; py < (GROUND + 3) * k; py++)
+  // Only the ledge's top surface takes the shadow: its front faces the room, away from the light.
+  for (let py = Math.max(top, (GROUND - 3) * k); py < Math.min(bottom, (GROUND + 3) * k); py++)
     for (let px = -PAD * k; px < CAT_W * k; px++) {
       const x = (px + 0.5) / k, y = (py + 0.5) / k, near = Math.hypot(Math.max(0, Math.abs(x - 8.5) - 4.3), y - GROUND);
       const contact = ((x - 8.5) / 5.2) ** 2 + ((y - GROUND + 0.1) / 0.7) ** 2 < 1, cast = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1;
@@ -361,7 +362,9 @@ export class Scene {
     };
     const fur = whiteFur(ledgeLight(cat[0] - 12 * k, cat[0] + 12 * k), spot.albedo), side = shadow[2] > 0.3 && Math.abs(shadow[0]) > 0.3 ? -Math.sign(shadow[0]) : 0;
     const x0 = cat[0] + (side > 0 ? 12 : -44) * k, litFur = side ? whiteFur(ledgeLight(x0, x0 + 32 * k), spot.albedo, 1) : fur;
-    this.scenes[key] = { tex, glow, fx, tint, fur, litFur, side, shadow, cat, rect, win, pose: spot.hang ? 1 : 0, ledge: [top, depth], top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
+    // The ledge's top surface in sprite rows, where shadows can fall.
+    const surface = [top - rect[1], top + depth - rect[1]];
+    this.scenes[key] = { tex, glow, fx, tint, fur, litFur, side, shadow, surface, cat, rect, win, pose: spot.hang ? 1 : 0, ledge: [top, depth], top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
   }
 
   // Scene positions are given on the 249-wide base grid; finer art scales them by k.
@@ -385,12 +388,12 @@ export class Scene {
     this.start = instant ? -Infinity : performance.now() / 1000;
   }
 
-  drawCat(t, fur, litFur, side, sky, shadow) {
+  drawCat(t, fur, litFur, side, sky, shadow, surfaces) {
     const pal = catPalette(fur, litFur, sky), k = this.k === 2 ? 2 : 1;
     if (t > this.twitch + 0.18 && Math.random() < 0.003) this.twitch = t;
     this.cat2d.clearRect(0, 0, this.catCanvas.width, this.catCanvas.height);
     for (const hang of [false, true]) {
-      paintShadow(this.cat2d, shadow, PAD * k, hang * CAT_H * k, k);
+      if (surfaces[+hang]) paintShadow(this.cat2d, shadow, PAD * k, hang * CAT_H * k, k, surfaces[+hang]);
       paintCat(this.cat2d, catPixels(t, t - this.twitch < 0.18, k, hang), pal, PAD * k, hang * CAT_H * k, side);
     }
   }
@@ -402,7 +405,7 @@ export class Scene {
     this.mix = ease(Math.min(1, (t - this.start) / DUR));
     const [w, h] = this.art, e = this.mix * this.mix * (3 - 2 * this.mix);
 
-    this.drawCat(t, lerp(A.fur, B.fur, e), lerp(A.litFur, B.litFur, e), (e < 0.5 ? A : B).side, lerp(A.tint, B.tint, e), lerp(A.shadow, B.shadow, e));
+    this.drawCat(t, lerp(A.fur, B.fur, e), lerp(A.litFur, B.litFur, e), (e < 0.5 ? A : B).side, lerp(A.tint, B.tint, e), lerp(A.shadow, B.shadow, e), { [A.pose]: A.surface, [B.pose]: B.surface });
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, this.catTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.catCanvas);
