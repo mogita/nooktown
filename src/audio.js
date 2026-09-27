@@ -41,6 +41,7 @@ export const CHANNELS = ['keys', 'bass', 'drums', 'weather', 'nature', 'vinyl'];
 // Each weather sound keeps its own level; the weather channel plays whichever matches the scene. Snow falls quietly, so only the wind carries.
 export const WEATHER_SOUNDS = { rain: 'rain', cloud: 'wind', sun: 'breeze', snow: 'wind' };
 export const DEFAULT_LEVELS = { keys: 0.7, bass: 0.6, drums: 0.5, rain: 0.4, wind: 0.55, breeze: 0.3, nature: 0.35, vinyl: 0.35, master: 0.7 };
+export const ROOM_LEVELS = { rain: 0.18, wind: 0.18, breeze: 0.18, nature: 0.15, vinyl: 0.17 };
 // Per-channel trim so equal slider positions sound roughly equally loud.
 const TRIM = { keys: 0.8, bass: 0.1, drums: 0.85, weather: 0.36, nature: 2.5, vinyl: 0.9 };
 
@@ -186,11 +187,11 @@ export class Engine {
     return out;
   }
 
-  setLevel(name, v) {
+  setLevel(name, v, tau = 0.06) {
     this.levels[name] = v;
-    if (Object.values(WEATHER_SOUNDS).includes(name)) return this.mixWeather(0.06);
+    if (Object.values(WEATHER_SOUNDS).includes(name)) return this.mixWeather(tau);
     const g = name === 'master' ? this.vol : this.ch[name];
-    if (g) g.gain.setTargetAtTime(v * v * (TRIM[name] ?? 1), this.ctx.currentTime, 0.06);
+    if (g) g.gain.setTargetAtTime(v * v * (TRIM[name] ?? 1), this.ctx.currentTime, tau);
   }
 
   mixWeather(tau) {

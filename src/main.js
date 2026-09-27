@@ -1,4 +1,4 @@
-import { Engine, DEFAULT_LEVELS, WEATHER_SOUNDS } from './audio.js';
+import { Engine, DEFAULT_LEVELS, ROOM_LEVELS, WEATHER_SOUNDS } from './audio.js';
 import { Scene, effects, favicon, shadowOf } from './scene.js';
 import { LANGUAGES, detect, lang, setLanguage, t } from './i18n/index.js';
 
@@ -21,15 +21,18 @@ const body = document.body, ui = $('#ui'), mixer = $('#mixer'), mixBtn = $('#mix
 const custom = {};
 // The listener's pick; until there is one, the language follows the browser's.
 let language;
-const state = { place: 'room', weather: 'rain', time: 'evening', levels: { ...DEFAULT_LEVELS } };
+const state = { place: 'room', weather: 'rain', time: 'evening' };
 try {
   const saved = JSON.parse(localStorage.getItem('nook:v3'));
   if (PLACES.includes(saved?.place)) state.place = saved.place;
   if (WEATHERS.includes(saved?.weather)) state.weather = saved.weather;
   if (TIMES.includes(saved?.time)) state.time = saved.time;
   if (LANGUAGES.some(([code]) => code === saved?.lang)) language = saved.lang;
-  for (const k in state.levels) if (Number.isFinite(saved?.levels?.[k])) custom[k] = state.levels[k] = Math.min(1, Math.max(0, saved.levels[k]));
+  for (const k in DEFAULT_LEVELS) if (Number.isFinite(saved?.levels?.[k])) custom[k] = Math.min(1, Math.max(0, saved.levels[k]));
 } catch {}
+// Sliders the listener has not moved follow the place's defaults.
+const levels = () => ({ ...DEFAULT_LEVELS, ...(state.place === 'room' && ROOM_LEVELS), ...custom });
+state.levels = levels();
 // Only sliders the listener moved are stored, so untouched ones follow future default changes.
 const save = () => { try { localStorage.setItem('nook:v3', JSON.stringify({ place: state.place, weather: state.weather, time: state.time, lang: language, levels: custom })); } catch {} };
 
@@ -194,6 +197,10 @@ function render() {
 function choose(key, value) {
   if (state[key] === value) return;
   state[key] = value;
+  if (key === 'place') {
+    state.levels = levels();
+    for (const [k, v] of Object.entries(state.levels)) engine?.setLevel(k, v, 0.6);
+  }
   save();
   render();
   showScene();
