@@ -91,7 +91,8 @@ svg {
   inset: -1px;
   border-radius: inherit;
   border: 1px solid rgba(255, 255, 255, 0.4);
-  animation: ripple 3.6s var(--ease) infinite;
+  /* A few pulses, not a loop: an endless animation keeps Firefox redrawing the page at the display's full rate. */
+  animation: ripple 3.6s var(--ease) 3 forwards;
 }
 .start:hover .orb { background: rgba(255, 255, 255, 0.16); scale: 1.04; }
 .start:active .orb { scale: 0.97; }
