@@ -11,8 +11,8 @@ const FADERS = [
   ['ambience', 'weather'], ['ambience', 'nature'], ['ambience', 'vinyl', 'Vinyl'],
   ['master', 'master', 'Master'],
 ];
-// On the 249-wide base grid: where the cat sits, the ledge's top row and depth, and indoors the window glass. On the sill the tail hangs over the edge.
-const SPOTS = { roof: { cat: [124, 105], ledge: [101, 7] }, room: { cat: [127, 103], ledge: [100, 4], window: [71, 14, 113, 80], hang: true } };
+// On the 249-wide base grid: where the cat sits, the ledge's top row and depth, and indoors the window glass. albedo is how light the ledge looks in plain daylight, so the white fur can be lit to match. On the sill the tail hangs over the edge.
+const SPOTS = { roof: { cat: [124, 105], ledge: [101, 7], albedo: 0.58 }, room: { cat: [127, 103], ledge: [100, 4], albedo: 0.78, window: [71, 14, 113, 80], hang: true } };
 const IDLE_MS = 3500;
 
 const $ = (s) => document.querySelector(s);

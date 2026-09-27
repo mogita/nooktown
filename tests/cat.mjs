@@ -3,9 +3,9 @@ import { catPixels } from '../src/scene.js';
 
 // Counts edge-connected pieces; the cat, tail included, must stay one piece in every frame.
 const pieces = (on) => {
-  const left = new Set(on);
+  const left = new Set(on.keys());
   let n = 0;
-  for (const start of on) {
+  for (const start of on.keys()) {
     if (!left.delete(start)) continue;
     n++;
     for (const stack = [start]; stack.length; ) {
@@ -32,4 +32,6 @@ for (const k of [1, 2]) {
   assert.equal(pieces(catPixels(0, true, k)), 1, `twitching cat splits at k = ${k}`);
 }
 assert.equal(pieces(catPixels(0, false, 1)), 1, 'small cat splits');
+// The ears are marked so they can glow pink.
+for (const k of [1, 2]) assert.ok([...catPixels(0, false, k).values()].some((part) => part !== 'fur'), `no ears at k = ${k}`);
 console.log('PASS: the cat stays in one piece, its tail holds 5 poses resting or hanging, and its ear twitches');
