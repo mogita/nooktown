@@ -18,9 +18,8 @@ const IDLE_MS = 3500;
 const $ = (s) => document.querySelector(s);
 const body = document.body, ui = $('#ui'), mixer = $('#mixer'), mixBtn = $('#mix'), caption = $('#caption'), canvas = $('#scene');
 
-const hour = new Date().getHours();
 const custom = {};
-const state = { place: 'roof', weather: 'rain', time: hour >= 7 && hour < 17 ? 'day' : hour >= 17 && hour < 20 ? 'evening' : 'night', levels: { ...DEFAULT_LEVELS } };
+const state = { place: 'room', weather: 'rain', time: 'evening', levels: { ...DEFAULT_LEVELS } };
 try {
   const saved = JSON.parse(localStorage.getItem('nook:v3'));
   if (PLACES.includes(saved?.place)) state.place = saved.place;
