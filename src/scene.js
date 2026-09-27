@@ -133,18 +133,12 @@ const GROUND = 22, CAT_W = 30, CAT_H = 38, PAD = 12; // PAD: room left of the ca
 
 const DUR = 2.4;
 
-// One horizontal or vertical box-blur pass over RGBA floats; alternating passes approximate a Gaussian.
-function blur(src, w, h, vertical, r) {
-  const out = new Float32Array(src.length), step = vertical ? w * 4 : 4, n = vertical ? h : w;
-  for (let i = 0; i < src.length; i += 4) {
-    const at = vertical ? ((i / 4 / w) | 0) : (i / 4) % w;
-    for (let o = -r; o <= r; o++) {
-      if (at + o < 0 || at + o >= n) continue;
-      for (let j = 0; j < 3; j++) out[i + j] += src[i + j + o * step] / (2 * r + 1);
-    }
-  }
-  return out;
-}
+const image = async (src) => {
+  const img = new Image();
+  img.src = src;
+  await img.decode();
+  return img;
+};
 
 const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2);
 const lerp = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
@@ -331,9 +325,8 @@ export class Scene {
 
   // spot gives, on the 249-wide base grid, where the cat sits, the ledge's top row and depth, and indoors the window glass.
   async load(key, url, fx, spot, shadow) {
-    const img = new Image();
-    img.src = url;
-    await img.decode();
+    // Glow maps, baked by art/snap.py, sit in glow/ beside the scenes; day scenes add no glow and have none.
+    const [img, halo] = await Promise.all([image(url), fx[1] ? image(url.replace(/[^/]+$/, 'glow/$&')) : null]);
     const gl = this.gl, tex = this.texture(gl.LINEAR_MIPMAP_LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
     gl.generateMipmap(gl.TEXTURE_2D);
@@ -347,18 +340,10 @@ export class Scene {
     for (let y = sy; y < sy + sh; y++) for (let x = sx; x < sx + sw; x++) for (let j = 0; j < 3; j++) tint[j] += d[(y * w + x) * 4 + j] / 255 / (sw * sh);
     const sky0 = [0, 0, 0];
     for (let i = 0; i < w * 4; i += 4) for (let j = 0; j < 3; j++) sky0[j] += d[i + j] / w;
-    // Glow map: keep only light sources brighter than the scenery, then blur them into a soft halo.
-    // Puddle reflections on the ledge are not sources, and nothing glows on the lip or face that faces the viewer.
     const [top, depth] = at(spot.ledge);
-    let g = new Float32Array(w * h * 4);
-    for (let i = 0; i < top * w * 4; i += 4) {
-      const l = Math.max(0, (0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2]) / 255 - 0.55) / 0.45;
-      for (let j = 0; j < 3; j++) g[i + j] = d[i + j] * l;
-    }
-    for (let pass = 0; pass < 6; pass++) g = blur(g, w, h, pass % 2, 2 * k);
-    g.fill(0, (top + depth) * w * 4);
     const glow = this.texture(gl.LINEAR, gl.LINEAR);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, Uint8ClampedArray.from(g, (v, i) => (i % 4 === 3 ? 255 : v)));
+    if (halo) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, halo);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(4));
     const cat = at(spot.cat), rect = [cat[0] - (8 + PAD) * k, cat[1] - GROUND * k, (PAD + CAT_W) * k, CAT_H * k];
     // The light on the ledge between two columns: where the cat sits, and beside it on the side the main light comes from (-1 left, 1 right) to light that side of its fur.
     const ledgeLight = (x0, x1) => {

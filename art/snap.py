@@ -197,6 +197,26 @@ def repaint_moon(path, k=1, lit=0.36, tilt=40):
     print(f'{path}: repainted waxing crescent at ({cx}, {cy}) r {radius:.1f}, {lit:.0%} lit, tilted {tilt} deg')
 
 
+def glow_map(src, dst, top, depth, k=1):
+    """Keep only light sources brighter than the scenery and blur them into the soft halo the shader adds on top.
+
+    Only rows above the ledge top count as sources, so puddle reflections on it do not glow, and nothing glows on its lip or face below top + depth.
+    Six alternating box blurs approximate a Gaussian; pixels past the image edges count as black.
+    """
+    a = np.asarray(Image.open(src).convert('RGB'), np.float64)
+    g = a * (np.maximum(0, (a @ [0.3, 0.59, 0.11]) / 255 - 0.55) / 0.45)[..., None]
+    g[top:] = 0
+    r = 2 * k
+    for p in range(6):
+        g = g.transpose(1, 0, 2) if p % 2 == 0 else g
+        c = np.cumsum(np.pad(g, ((r + 1, r), (0, 0), (0, 0))), axis=0)
+        g = (c[2 * r + 1:] - c[:-2 * r - 1]) / (2 * r + 1)
+        g = g.transpose(1, 0, 2) if p % 2 == 0 else g
+    g[top + depth:] = 0
+    dst.parent.mkdir(exist_ok=True)
+    Image.fromarray(np.clip(np.rint(g), 0, 255).astype(np.uint8)).save(dst, optimize=True)
+
+
 if __name__ == '__main__':
     k = DETAIL
     root = Path(__file__).parent
@@ -219,6 +239,12 @@ if __name__ == '__main__':
     for png in sorted(assets.glob('*.png')):
         if not png.stem.startswith('room-'):
             mend_wire(png, wire)
+    # Ledge top and depth on the 249-wide base grid, as in SPOTS in src/main.js. Day scenes add no glow (effects in src/scene.js), so they get no map.
+    for png in sorted(assets.glob('*.png')):
+        if png.stem.endswith('-day'):
+            continue
+        top, depth = (100, 4) if png.stem.startswith('room-') else (101, 7)
+        glow_map(png, assets / 'glow' / png.name, top * k, depth * k, k)
     # Link preview card, enlarged without smoothing so the pixels stay crisp when sites scale it down.
     card = Image.open(assets / 'sun-night.png')
     card.resize((card.width * 3, card.height * 3), Image.NEAREST).save(assets.parent / 'og.png', optimize=True)
