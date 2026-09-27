@@ -124,7 +124,7 @@ const SKULL = [8.5, 5.6, 4.9, 3], HAUNCHES = [8.5, 18.6, 6.6, 3.5, 3];
 const FACE = [[3.6, 5.8], [13.4, 5.8], [8.5, 11.2]];
 const CHEST = [[6.4, 9.6], [10.6, 9.6], [11.6, 11.4], [12.1, 17], [4.9, 17], [5.4, 11.4]];
 const EAR = [[2.6, 0.3], [3.6, 5.6], [7.4, 2.8]];
-const GROUND = 22, CAT_W = 30, CAT_H = 38;
+const GROUND = 22, CAT_W = 30, CAT_H = 38, PAD = 12; // PAD: room left of the cat for its shadow
 
 const DUR = 2.4;
 
@@ -189,30 +189,45 @@ export function catPixels(t, twitch, k = 1, hang = false) {
   return on;
 }
 
-// Three-tone fur: pixels with nothing above them catch the light, pixels with nothing below them fall in shade. Ear points are pink, fading back to white along a one-pixel line down the ear's edge.
-function paintCat(g, on, pal, ox = 0, oy = 0) {
+// Fur tones: pixels with nothing above them catch the light, sides facing the main light (side is -1 for left, 1 for right, 0 for none) brighten and the far sides dim, and pixels with nothing below them fall in shade. Ear points are pink, fading back to white along a one-pixel line down the ear's edge.
+function paintCat(g, on, pal, ox = 0, oy = 0, side = 0) {
   const has = (x, y) => on.has(`${x},${y}`);
   for (const [key, part] of on) {
     const [x, y] = key.split(',').map(Number), lit = !has(x, y - 1);
     const edge = lit || !has(x - 1, y) || !has(x + 1, y);
-    g.fillStyle = part === 'tip' ? pal.tip : part === 'ear' && edge ? pal.blush : lit ? pal.rim : has(x, y + 1) ? pal.fur : pal.shade;
+    // Toward the main light a rim of lit fur about three pixels deep, brightest at the edge.
+    const toLight = side && [1, 2, 3].findIndex((i) => !has(x + i * side, y));
+    g.fillStyle = part === 'tip' ? pal.tip : part === 'ear' && edge ? pal.blush : lit ? pal.rim
+      : toLight === 0 ? pal.key : toLight > 0 ? pal.warm : side && !has(x - side, y) ? pal.side : has(x, y + 1) ? pal.fur : pal.shade;
     g.fillRect(ox + x, oy + y, 1, 1);
   }
+}
+
+// A flat two-tone shadow on the ledge, in a dusky violet rather than black: a thin contact shadow hugging the cat's base, and a cast shadow stretched away from the main light ([dx, dy, strength], see shadowOf), darker near the cat and paler further out.
+function paintShadow(g, [dx, dy, s], ox, oy, k) {
+  const len = 10 * s, cx = 8.5 + (dx * len) / 2, cy = GROUND - 0.5 + 0.6 * s * dy, rx = 4.8 + (len / 2) * Math.abs(dx), ry = 1.3 + 0.6 * s * Math.abs(dy);
+  for (let py = (GROUND - 3) * k; py < (GROUND + 3) * k; py++)
+    for (let px = -PAD * k; px < CAT_W * k; px++) {
+      const x = (px + 0.5) / k, y = (py + 0.5) / k, near = Math.hypot(Math.max(0, Math.abs(x - 8.5) - 4.3), y - GROUND);
+      const contact = ((x - 8.5) / 5.2) ** 2 + ((y - GROUND + 0.1) / 0.7) ** 2 < 1, cast = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 < 1;
+      const a = contact ? 0.38 : cast ? (near < 2 + 0.25 * len ? 0.36 : 0.2) * s : 0;
+      if (a) (g.fillStyle = `rgba(28, 20, 48, ${a})`), g.fillRect(ox + px, oy + py, 1, 1);
+    }
 }
 
 const lum = (c) => 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
 
 // White fur lit by the light where the cat sits, scaled from the ledge's own daylight lightness (albedo). Only part of the light's colour carries over and dim light is lifted, so the cat still reads as white at sunset and at night.
-function whiteFur(light, albedo) {
+function whiteFur(light, albedo, colour = 0.4) {
   const l = Math.min(0.92, 0.35 + (0.65 * lum(light) * 0.9) / albedo);
-  return light.map((v) => Math.min(1, l * (0.6 + (0.4 * v) / lum(light))));
+  return light.map((v) => Math.min(1, l * (1 - colour + (colour * v) / lum(light))));
 }
 
 // Light from behind the cat rims its outline and shines through its thin ear points (subsurface scattering), which glow pinker against a bright sky.
 const PINK = [1, 0.6, 0.66];
-function catPalette(fur, sky) {
+function catPalette(fur, litFur, sky) {
   const back = Math.min(1, lum(sky) * 1.6), pink = (k) => css(fur.map((v, i) => v * (1 - k * (0.38 + 0.14 * back) * (1 - PINK[i]))));
-  return { fur: css(fur), rim: css(fur.map((v, i) => v + sky[i] * 0.35)), shade: css(fur.map((v) => v * 0.8)), tip: pink(1), blush: pink(0.5) };
+  return { fur: css(fur), rim: css(fur.map((v, i) => v + sky[i] * 0.35)), shade: css(fur.map((v) => v * 0.8)), key: css(litFur.map((v) => v * 1.1)), warm: css(litFur.map((v, i) => (v + fur[i]) / 2)), side: css(fur.map((v) => v * 0.86)), tip: pink(1), blush: pink(0.5) };
 }
 
 // 32x32 pixel-art tab icon: the cat on the ledge under a day, evening or night sky.
@@ -235,13 +250,22 @@ export function favicon(time, rounded = true) {
   }
   for (const [x, y] of p.stars ?? []) px(x, y, '#cfd8ff');
   for (let y = 28; y < 32; y++) for (let x = 0; x < 32; x++) px(x, y, p.ledge[y === 28 ? 0 : 1]);
-  paintCat(g, catPixels(0, false), catPalette(...p.cat), 4, 28 - GROUND);
+  paintCat(g, catPixels(0, false), catPalette(p.cat[0], p.cat[0], p.cat[1]), 4, 28 - GROUND);
   // Rounded corners (app icons stay square: the OS applies its own mask).
   if (rounded) for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
     const dx = Math.max(0, Math.abs(x + 0.5 - 16) - 10), dy = Math.max(0, Math.abs(y + 0.5 - 16) - 10);
     if (Math.hypot(dx, dy) > 6) g.clearRect(x, y, 1, 1);
   }
   return c.toDataURL();
+}
+
+// Which way the main light throws shadows on screen ([dx, dy], dy toward the viewer) and how strongly, read off each scene's art: the sun from the upper left, the low sun through the window, and the table lamp right of the sill. Overcast and night rooftops only get the contact shadow.
+export function shadowOf(place, weather, time) {
+  if (place === 'room') {
+    if (time === 'day') return { rain: [-1, 0.2, 0.45], cloud: [0, 1, 0.3], sun: [1, 0.2, 0.8] }[weather];
+    return time === 'evening' && weather === 'sun' ? [-0.5, 1, 0.8] : [-1, 0.1, time === 'night' ? 1 : 0.75];
+  }
+  return weather === 'sun' ? (time === 'day' ? [1, -0.6, 0.9] : time === 'evening' ? [0, 1, 0.5] : [0, 0, 0]) : [0, 0, 0];
 }
 
 export function effects(weather, time) {
@@ -299,7 +323,7 @@ export class Scene {
   }
 
   // spot gives, on the 249-wide base grid, where the cat sits, the ledge's top row and depth, and indoors the window glass.
-  async load(key, url, fx, spot) {
+  async load(key, url, fx, spot, shadow) {
     const img = new Image();
     img.src = url;
     await img.decode();
@@ -328,17 +352,23 @@ export class Scene {
     g.fill(0, (top + depth) * w * 4);
     const glow = this.texture(gl.LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, Uint8ClampedArray.from(g, (v, i) => (i % 4 === 3 ? 255 : v)));
-    const cat = at(spot.cat), rect = [cat[0] - 8 * k, cat[1] - GROUND * k, CAT_W * k, CAT_H * k], light = [0, 0, 0];
-    // The light on the ledge where the cat sits.
-    for (let y = top; y < top + depth; y++) for (let x = cat[0] - 12 * k; x < cat[0] + 12 * k; x++) for (let j = 0; j < 3; j++) light[j] += d[(y * w + x) * 4 + j] / 255 / (depth * 24 * k);
-    this.scenes[key] = { tex, glow, fx, tint, fur: whiteFur(light, spot.albedo), cat, rect, win, pose: spot.hang ? 1 : 0, ledge: [top, depth], top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
+    const cat = at(spot.cat), rect = [cat[0] - (8 + PAD) * k, cat[1] - GROUND * k, (PAD + CAT_W) * k, CAT_H * k];
+    // The light on the ledge between two columns: where the cat sits, and beside it on the side the main light comes from (-1 left, 1 right) to light that side of its fur.
+    const ledgeLight = (x0, x1) => {
+      const c = [0, 0, 0];
+      for (let y = top; y < top + depth; y++) for (let x = x0; x < x1; x++) for (let j = 0; j < 3; j++) c[j] += d[(y * w + x) * 4 + j] / 255 / (depth * (x1 - x0));
+      return c;
+    };
+    const fur = whiteFur(ledgeLight(cat[0] - 12 * k, cat[0] + 12 * k), spot.albedo), side = shadow[2] > 0.3 && Math.abs(shadow[0]) > 0.3 ? -Math.sign(shadow[0]) : 0;
+    const x0 = cat[0] + (side > 0 ? 12 : -44) * k, litFur = side ? whiteFur(ledgeLight(x0, x0 + 32 * k), spot.albedo, 1) : fur;
+    this.scenes[key] = { tex, glow, fx, tint, fur, litFur, side, shadow, cat, rect, win, pose: spot.hang ? 1 : 0, ledge: [top, depth], top: `#${sky0.map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}` };
   }
 
   // Scene positions are given on the 249-wide base grid; finer art scales them by k.
   setSize(w, h) {
     const gl = this.gl, k = (this.k = Math.max(1, Math.round(w / 249)));
     // One row per tail pose: resting on the ledge, and hanging over the edge.
-    Object.assign(this.catCanvas, { width: CAT_W * k, height: 2 * CAT_H * k });
+    Object.assign(this.catCanvas, { width: (PAD + CAT_W) * k, height: 2 * CAT_H * k });
     this.art = [w, h];
     this.frameTex = this.texture(gl.LINEAR, gl.LINEAR);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
@@ -355,13 +385,13 @@ export class Scene {
     this.start = instant ? -Infinity : performance.now() / 1000;
   }
 
-  drawCat(t, fur, sky) {
-    const pal = catPalette(fur, sky);
+  drawCat(t, fur, litFur, side, sky, shadow) {
+    const pal = catPalette(fur, litFur, sky), k = this.k === 2 ? 2 : 1;
     if (t > this.twitch + 0.18 && Math.random() < 0.003) this.twitch = t;
     this.cat2d.clearRect(0, 0, this.catCanvas.width, this.catCanvas.height);
     for (const hang of [false, true]) {
-      const on = catPixels(t, t - this.twitch < 0.18, this.k === 2 ? 2 : 1, hang);
-      paintCat(this.cat2d, on, pal, 0, hang * CAT_H * this.k);
+      paintShadow(this.cat2d, shadow, PAD * k, hang * CAT_H * k, k);
+      paintCat(this.cat2d, catPixels(t, t - this.twitch < 0.18, k, hang), pal, PAD * k, hang * CAT_H * k, side);
     }
   }
 
@@ -372,7 +402,7 @@ export class Scene {
     this.mix = ease(Math.min(1, (t - this.start) / DUR));
     const [w, h] = this.art, e = this.mix * this.mix * (3 - 2 * this.mix);
 
-    this.drawCat(t, lerp(A.fur, B.fur, e), lerp(A.tint, B.tint, e));
+    this.drawCat(t, lerp(A.fur, B.fur, e), lerp(A.litFur, B.litFur, e), (e < 0.5 ? A : B).side, lerp(A.tint, B.tint, e), lerp(A.shadow, B.shadow, e));
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, this.catTex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.catCanvas);

@@ -1,5 +1,5 @@
 import { Engine, DEFAULT_LEVELS, WEATHER_SOUNDS } from './audio.js';
-import { Scene, effects, favicon } from './scene.js';
+import { Scene, effects, favicon, shadowOf } from './scene.js';
 
 const PLACES = ['roof', 'room'];
 const WEATHERS = ['rain', 'cloud', 'sun'];
@@ -56,7 +56,7 @@ try {
   // The current scene loads first, then the rest, with this place's scenes queued ahead of the other's.
   for (const s of [state, ...all.sort((a, b) => (b.place === state.place) - (a.place === state.place))]) {
     const key = sceneKey(s);
-    loads[key] ??= (loads[first] ?? Promise.resolve()).then(() => scene.load(key, `assets/${key}.png`, effects(s.weather, s.time), SPOTS[s.place]));
+    loads[key] ??= (loads[first] ?? Promise.resolve()).then(() => scene.load(key, `assets/${key}.png`, effects(s.weather, s.time), SPOTS[s.place], shadowOf(s.place, s.weather, s.time)));
   }
   loads[first].then(() => {
     showScene(true);
