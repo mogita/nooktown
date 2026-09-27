@@ -60,6 +60,22 @@ for (const place of ['roof', 'room']) for (const weather of ['rain', 'cloud', 's
   if (!(quiet < -60)) fails.push(`not silent after brake (${quiet.toFixed(1)} dB)`);
   if (!(back > -40)) fails.push(`no sound after spin-up (${back.toFixed(1)} dB)`);
 }
+// Weather change: the old weather's sources stop once it has faded out, and the new weather plays.
+{
+  const ctx = new OfflineAudioContext(2, SR * 14, SR), q = 128 / SR, at = (t) => Math.round(t / q) * q;
+  const e = new Engine(ctx, { place: 'roof', weather: 'rain', time: 'day', levels: { ...silent, master: 1, rain: 0.7, wind: 0.7 } });
+  e.fadeTo(1, 0.01);
+  const rain = e.sound;
+  let ended = 0;
+  for (const s of rain.sources) s.onended = () => ended++;
+  ctx.suspend(at(1)).then(() => (e.setScene('cloud', 'day', 'roof'), ctx.resume()));
+  const d = (await ctx.startRendering()).getChannelData(0).subarray(12 * SR);
+  await new Promise((r) => setTimeout(r));
+  const wind = 10 * Math.log10(d.reduce((n, v) => n + v * v, 0) / d.length + 1e-12);
+  lines.push(`weather change: ${ended} of ${rain.sources.length} rain sources stopped, wind after ${wind.toFixed(1)} dB`);
+  if (ended !== rain.sources.length) fails.push(`rain keeps running after the weather change (${ended} of ${rain.sources.length} stopped)`);
+  if (!(wind > -55)) fails.push(`no wind after the weather change (${wind.toFixed(1)} dB)`);
+}
 const result = (fails.length ? `FAIL\n${fails.join('\n')}` : 'PASS') + '\n\n' + lines.join('\n');
 document.getElementById('out').textContent = result;
 window.result = result;

@@ -104,8 +104,6 @@ export class Engine {
     for (const k of ['weather', 'nature']) this.ch[k].connect(this.walls);
     send(this.ch.nature, 0.25);
 
-    this.weathers = { rain: this.rain(), cloud: this.wind(420, 0.8, 0.9), sun: this.wind(2400, 0.5, 0.28) };
-    for (const g of Object.values(this.weathers)) g.connect(this.ch.weather);
     this.vinyl().connect(this.ch.vinyl);
     this.crickets = [0, 1, 2].map(() => ({ f: rand(4100, 5200), pan: rand(-0.8, 0.8) }));
 
@@ -122,11 +120,13 @@ export class Engine {
     const o = new OscillatorNode(this.ctx, { frequency: freq });
     o.connect(new GainNode(this.ctx, { gain: depth })).connect(param);
     o.start();
+    this.sources?.push(o);
   }
 
   loop(buffer = this.noise) {
     const s = new AudioBufferSourceNode(this.ctx, { buffer, loop: true });
     s.start(0, rand(0, buffer.duration));
+    this.sources?.push(s);
     return s;
   }
 
@@ -165,6 +165,16 @@ export class Engine {
     return out;
   }
 
+  // One weather's sound, carrying the sources that feed it so they can be stopped once it has faded out.
+  weatherSound(weather) {
+    this.sources = [];
+    const out = weather === 'rain' ? this.rain() : weather === 'cloud' ? this.wind(420, 0.8, 0.9) : this.wind(2400, 0.5, 0.28);
+    out.sources = this.sources;
+    this.sources = null;
+    out.connect(this.ch.weather);
+    return out;
+  }
+
   vinyl() {
     const ctx = this.ctx, out = new GainNode(ctx);
     const crackle = makeBuffer(ctx, 9, (d, sr) => {
@@ -184,13 +194,22 @@ export class Engine {
   }
 
   mixWeather(tau) {
-    for (const [k, g] of Object.entries(this.weathers)) g.gain.setTargetAtTime(k === this.weather ? (this.levels[WEATHER_SOUNDS[k]] ?? 0) ** 2 : 0, this.ctx.currentTime, tau);
+    this.sound.gain.setTargetAtTime((this.levels[WEATHER_SOUNDS[this.weather]] ?? 0) ** 2, this.ctx.currentTime, tau);
   }
 
   setScene(weather, time, place, instant) {
+    const now = this.ctx.currentTime, tau = instant ? 0.01 : 1.2;
+    // Only the current weather's sound runs: the one it replaces fades out, then stops.
+    if (weather !== this.weather) {
+      if (this.sound) {
+        this.sound.gain.setTargetAtTime(0, now, tau);
+        for (const s of this.sound.sources) s.stop(now + 8 * tau);
+      }
+      this.sound = this.weatherSound(weather);
+    }
     this.weather = weather;
-    this.mixWeather(instant ? 0.01 : 1.2);
-    this.walls.frequency.setTargetAtTime(place === 'room' ? 3500 : OPEN, this.ctx.currentTime, instant ? 0.01 : 0.6);
+    this.mixWeather(tau);
+    this.walls.frequency.setTargetAtTime(place === 'room' ? 3500 : OPEN, now, instant ? 0.01 : 0.6);
     this.time = time;
     this.place = place;
     if (instant) this.song = SONGS[place][time];

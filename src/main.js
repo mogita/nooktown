@@ -82,7 +82,8 @@ function play() {
   const first = !ctx;
   if (first) {
     if ('audioSession' in navigator) navigator.audioSession.type = 'playback';
-    ctx = new AudioContext({ latencyHint: 'playback' });
+    // 32 kHz keeps everything below 16 kHz, where this mix lives, and runs about a third cheaper than 48 kHz.
+    ctx = new AudioContext({ latencyHint: 'playback', sampleRate: 32000 });
     engine = new Engine(ctx, state);
     // Long lookahead so throttled background-tab timers never starve the schedule.
     const tick = () => engine.tick(ctx.currentTime + 1.5);
