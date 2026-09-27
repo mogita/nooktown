@@ -19,7 +19,7 @@ export async function setLanguage(code) {
   lang = code;
   strings = next;
   document.documentElement.lang = code;
-  document.title = `Nooktown 🐈‍⬛ ${t('title')}`;
+  document.title = `Nooktown: ${t('title')}`;
   for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t);
   for (const el of document.querySelectorAll('[data-t-label]')) {
     el.setAttribute('aria-label', t(el.dataset.tLabel));
