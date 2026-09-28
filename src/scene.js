@@ -159,12 +159,13 @@ const inPolygon = (x, y, pts) => {
 function tail(pose, hang) {
   const line = [], n = hang ? 54 : 44;
   // On the ledge the root runs a quarter pixel low, so the flat stretch stays one even width on the pixel grid.
-  for (let i = 0, x = hang ? 9.6 : 12.7, y = hang ? 20.8 : 21.25, a = hang ? Math.PI / 2 : 0; i < n; i++) {
+  for (let i = 0, x = hang ? 8.5 : 12.7, y = hang ? 20.8 : 21.25, a = hang ? Math.PI / 2 : 0; i < n; i++) {
     const s = i / (n - 1);
     if (hang) a += s > 0.6 ? (1.2 + 0.8 * pose) / (0.4 * n) : 0;
     else if (i >= 20) a -= (0.3 + 0.25 * pose) / 4;
     x += Math.cos(a) / 4, y += Math.sin(a) / 4;
-    line.push([x, y, s < 0.6 ? 0.85 - 0.25 * s : 0.7 + 0.65 * Math.min(1, (s - 0.6) / 0.3)]);
+    // Hanging, the tail sits on a pixel boundary to stay centred, where it can only be an even number of pixels wide, so its shaft keeps one width rather than stepping down.
+    line.push([x, y, s < 0.6 ? (hang ? 0.72 : 0.85 - 0.25 * s) : 0.7 + 0.65 * Math.min(1, (s - 0.6) / 0.3)]);
   }
   return line;
 }
